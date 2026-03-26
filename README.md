@@ -1,47 +1,97 @@
-# Fruit Sorter: AI-Powered Fruit Classifier (Apples & Oranges)
+<div align="center">
 
-Este proyecto es un sistema de clasificación de frutas automatizado que utiliza Inteligencia Artificial local y hardware de código abierto. Combina el poder de los modelos de lenguaje visual (VLM) con la precisión de Arduino para crear una solución de clasificación física.
+# Clasificador de Frutas con IA (Manzanas y Naranjas)
 
-## Cómo funciona 
+<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=24&duration=3000&pause=1000&color=9333EA&center=true&vCenter=true&width=600&lines=Visi%C3%B3n+Artificial+Local;LMStudio+%2B+Arduino;Clasificaci%C3%B3n+Automatizada" alt="Typing SVG" />
 
-1.  **Captura de imagen:** Una cámara web monitoriza el área de clasificación.
-2.  **Visión Artificial Local:** Un servidor Python (FastMCP) captura la imagen y la envía a **LMStudio**, donde un modelo **Qwen3-VL** identifica si se trata de una manzana o una naranja.
-3.  **Clasificación Física:** Tras la identificación, el servidor envía un comando serial a un **Arduino Uno**, el cual acciona servomotores para desviar la fruta hacia el contenedor correspondiente.
+<br/>
 
-## Tecnologías utilizadas
+[![GitHub](https://img.shields.io/badge/GitHub-AndresMondragon2004-181717?style=for-the-badge&logo=github)](https://github.com/AndresMondragon2004)
+[![Arduino](https://img.shields.io/badge/Arduino-Uno-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://www.arduino.cc/)
 
--   **Inteligencia Artificial:** [LMStudio](https://lmstudio.ai/) con el modelo `qwen3-vl-4b`.
--   **Software:**
-    -   **Python 3.x**
-    -   **FastMCP:** Para la creación del bridge de herramientas.
-    -   **OpenCV:** Gestión de cámara y procesamiento de imagen.
-    -   **Serial (PySerial):** Comunicación con hardware.
--   **Hardware:**
-    -   **Arduino Uno**
-    -   **Servomotores (2x)**: Para el mecanismo de desvío.
-    -   **Cámara Web USB:** Para la visión.
+</div>
 
-## Estructura del repositorio
+---
 
--   `server.py`: Servidor central en Python que conecta la IA con el hardware.
--   `fruit_sorter.ino`: Código de Arduino para el control de los servomotores.
+## Sobre el Proyecto
 
-## Configuración rápida
+Este proyecto es un sistema de clasificación de frutas automatizado que utiliza **Inteligencia Artificial local** y hardware de código abierto. Combina el poder de los modelos de lenguaje visual (VLM) con la precisión de **Arduino** para crear una solución de clasificación física en tiempo real.
 
-1.  **LMStudio:**
-    -   Carga un modelo Vision (ej. `qwen3-vl-4b`).
-    -   Inicia el servidor local en el puerto `1235`.
-2.  **Arduino:**
-    -   Carga `fruit_sorter.ino` en tu placa.
-    -   Asegúrate de que los servos estén en los pines 9 (Manzanas) y 10 (Naranjas).
-3.  **Python:**
-    -   Instala dependencias: `pip install fastmcp opencv-python pyserial requests`.
-    -   Verifica el puerto serial en `server.py` (ej. `COM8` o `/dev/ttyUSB0`).
-    -   Ejecuta: `python server.py`.
+---
+
+## Cómo funciona
+
+1.  **Detección de Presencia:** Un sensor ultrasónico espera a que una fruta llegue a la posición de escaneo.
+2.  **Captura de Imagen:** Una cámara web monitoriza el área de clasificación.
+3.  **Visión Artificial Local:** Un servidor Python (**FastMCP**) captura la imagen y la envía a **LMStudio**, donde un modelo **Qwen3-VL** identifica si se trata de una manzana o una naranja.
+4.  **Clasificación Física:** Tras la identificación, el servidor envía un comando serial al **Arduino Uno**, el cual acciona servomotores para desviar la fruta hacia el contenedor correspondiente.
+
+---
+
+## Tech Stack
+
+<div align="center">
+
+### IA & Visión
+![LMStudio](https://img.shields.io/badge/LMStudio-v0.2.19-black?style=flat-square)
+![Qwen3-VL](https://img.shields.io/badge/Model-Qwen3--VL--4b-9333EA?style=flat-square)
+![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
+
+### Software
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastMCP](https://img.shields.io/badge/FastMCP-Latest-orange?style=flat-square)
+![PySerial](https://img.shields.io/badge/PySerial-3.5-yellow?style=flat-square)
+
+### Hardware
+![Arduino](https://img.shields.io/badge/Arduino_Uno-R3-00979D?style=flat-square&logo=arduino&logoColor=white)
+![Servos](https://img.shields.io/badge/Servos-SG90-red?style=flat-square)
+![Sensor](https://img.shields.io/badge/Sensor-HC--SR04-blue?style=flat-square)
+
+</div>
+
+---
+
+## Estructura del Repositorio
+
+- `server.py`: Servidor central en Python que conecta la IA con el hardware.
+- `fruit_sorter.ino`: Código de Arduino para el control de los servomotores y sensor.
+
+---
+
+## Configuración Rápida
+
+### 1. LMStudio
+- Carga un modelo Vision (ej. `qwen/qwen3-vl-4b`).
+- Inicia el servidor local en el puerto `1235`.
+
+### 2. Arduino
+- Carga `fruit_sorter.ino` en tu placa.
+- **Pines:** 9 (Manzana), 10 (Naranja), 6 (Trig), 7 (Echo).
+
+### 3. Python
+- Instala dependencias:
+  ```bash
+  pip install fastmcp opencv-python pyserial requests
+  ```
+- Verifica el puerto serial en `server.py` (ej. `COM8`).
+- Ejecuta el servidor:
+  ```bash
+  python server.py
+  ```
+
+---
 
 ## Uso con MCP
 
-Este proyecto está diseñado para funcionar como un servidor **MCP (Model Context Protocol)**. Puedes conectarlo a Claude Desktop o cualquier cliente compatible para controlar el clasificador mediante lenguaje natural.
+Este proyecto funciona como un servidor **MCP (Model Context Protocol)**. Puedes conectarlo a Claude Desktop o cualquier cliente compatible para controlar el clasificador mediante lenguaje natural.
 
 ---
-Mantenido por **Andrés**.
+
+<div align="center">
+
+**Hecho por [Jesús Andrés Mondragón Tenorio](https://github.com/AndresMondragon2004)**
+
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AndresMondragon2004)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/andres-mondragon-tenorio/)
+
+</div>
