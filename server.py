@@ -6,19 +6,19 @@ import serial
 import time
 
 # === CONFIGURATION ===
-CAMERA_INDEX = 1          # 0 = built-in webcam, 1 = external USB webcam
-WARMUP_FRAMES = 10        # Frames to discard so autoexposure can stabilize
+CAMERA_INDEX   = 1
+WARMUP_FRAMES  = 10
 
-# LMStudio vision API (second instance on port 1235).
-# Instance 1 (port 1234): chat + MCP — the one that calls this tool.
-# Instance 2 (port 1235): vision model — the one that classifies the fruit.
-LMSTUDIO_URL = "http://localhost:1235/v1/chat/completions"
-LMSTUDIO_MODEL = "qwen/qwen3-vl-4b"  # Vision model (VL) — the one that can see images
+LMSTUDIO_URL   = "http://localhost:1235/v1/chat/completions"
+LMSTUDIO_MODEL = "qwen/qwen3-vl-4b"
 
-# Arduino serial
-SERIAL_PORT = "COM8"
-SERIAL_BAUD = 9600
-SERIAL_TIMEOUT = 10  # seconds (3s servo movement + margin)
+SERIAL_PORT    = "COM8"
+SERIAL_BAUD    = 9600
+
+# Timeouts
+SERIAL_TIMEOUT_SHORT = 5    # For PING / fast commands
+SERIAL_TIMEOUT_FRUIT = 35   # For WAIT_FRUIT (30s Arduino + 5s margin)
+SERIAL_TIMEOUT_SORT  = 10   # For APPLE / ORANGE (3s servo + margin)
 
 app = FastMCP(
     name="Fruit Classifier",
@@ -26,57 +26,43 @@ app = FastMCP(
     You are a fruit sorting assistant with a webcam and an Arduino-controlled
     servo mechanism. You have vision capabilities (Qwen3-VL).
 
-    WORKFLOW for sorting fruits:
-    1. Use classify_fruit to capture an image and identify the fruit.
-    2. Based on your classification, use sort_fruit to activate the correct servo.
-    3. Report the result to the user.
+    AUTOMATIC WORKFLOW when the user asks to classify:
+    1. Call wait_for_fruit — blocks until the sensor detects a fruit.
+    2. Call classify_fruit — takes a photo and classifies it.
+    3. Call sort_fruit(fruit=...) — activates the corresponding servo.
+    4. Report the result to the user.
+    5. Return to step 1 if the user wants to continue in continuous mode.
 
     Available tools:
-
-    take_photo: Captures a photo from the webcam. Use it to preview the scene.
-    classify_fruit: Captures a photo and classifies the fruit as 'apple' or 'orange'.
-    sort_fruit: After classifying, call this with fruit="apple" or fruit="orange"
-               to activate the corresponding servo on the Arduino.
+      take_photo      — captures a photo for preview.
+      wait_for_fruit  — waits for ultrasonic sensor detection (blocking).
+      classify_fruit  — takes a photo and classifies the fruit ('apple' or 'orange').
+      sort_fruit      — activates the servo based on the classification.
     """
 )
 
 
-# === ARDUINO ===
+# ── Arduino ──────────────────────────────────────────────────────────────────
 
-def send_arduino_command(command: str) -> dict:
-    """
-    Sends a command to the Arduino via serial and waits for response.
-    Returns a dict with status and response.
-    """
+def send_arduino_command(command: str, timeout: float) -> dict:
+    """Sends a command to the Arduino and waits for a response."""
     try:
-        with serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=SERIAL_TIMEOUT) as ser:
-            # Wait for Arduino to be ready after opening port
-            # (Arduino Uno resets when serial is opened)
-            time.sleep(2)
-
-            # Send command
+        with serial.Serial(SERIAL_PORT, SERIAL_BAUD, timeout=timeout) as ser:
+            time.sleep(2)  # Wait for Uno reset on port open
             ser.write(f"{command}\n".encode())
-
-            # Read response
             response = ser.readline().decode().strip()
-
             return {
-                "success": response == "OK" or response == "PONG",
-                "response": response
+                "success": response in ("OK", "PONG", "DETECTED"),
+                "response": response,
             }
     except serial.SerialException as e:
-        return {
-            "success": False,
-            "error": f"Serial error: {str(e)}"
-        }
+        return {"success": False, "error": f"Serial error: {str(e)}"}
 
 
-# === CAMERA ===
+# ── Camera ───────────────────────────────────────────────────────────────────
 
 def get_camera():
-    """Opens the webcam with fallback and warmup."""
     cap = cv2.VideoCapture(CAMERA_INDEX)
-
     if not cap.isOpened():
         for i in range(5):
             if i == CAMERA_INDEX:
@@ -84,30 +70,23 @@ def get_camera():
             cap = cv2.VideoCapture(i)
             if cap.isOpened():
                 break
-
     if not cap.isOpened():
         return None
-
     for _ in range(WARMUP_FRAMES):
         cap.read()
-
     return cap
 
 
 def capture_frame():
-    """Captures a single frame from the webcam. Returns the frame or None."""
     cap = get_camera()
     if cap is None:
         return None
-
     ret, frame = cap.read()
     cap.release()
-
     return frame if ret else None
 
 
 def frame_to_base64(frame, max_size=512) -> str:
-    """Resizes the frame (keeping aspect ratio) and encodes as JPEG base64."""
     h, w = frame.shape[:2]
     scale = max_size / max(h, w)
     if scale < 1.0:
@@ -116,7 +95,7 @@ def frame_to_base64(frame, max_size=512) -> str:
     return base64.b64encode(buffer).decode("utf-8")
 
 
-# === MCP TOOLS ===
+# ── MCP Tools ────────────────────────────────────────────────────────────────
 
 @app.tool
 def take_photo() -> dict:
@@ -127,11 +106,39 @@ def take_photo() -> dict:
     frame = capture_frame()
     if frame is None:
         return {"error": "Webcam not available."}
-
     return {
         "image_base64": frame_to_base64(frame),
         "format": "jpeg",
-        "resolution": f"{frame.shape[1]}x{frame.shape[0]}"
+        "resolution": f"{frame.shape[1]}x{frame.shape[0]}",
+    }
+
+
+@app.tool
+def wait_for_fruit(timeout_seconds: int = 30) -> dict:
+    """
+    Blocks until the ultrasonic sensor detects a fruit
+    at the classification position.
+
+    Args:
+        timeout_seconds: Maximum seconds to wait (default 30).
+                         Must match WAIT_TIMEOUT_MS on the Arduino.
+
+    Returns:
+        detected=True when a fruit is ready, or error/timeout.
+    """
+    py_timeout = timeout_seconds + 5  # Python timeout = Arduino timeout + margin
+
+    result = send_arduino_command("WAIT_FRUIT", timeout=py_timeout)
+
+    if result.get("response") == "DETECTED":
+        return {"detected": True, "message": "Fruit detected. Ready to classify."}
+
+    if result.get("response") == "TIMEOUT":
+        return {"detected": False, "message": "Timeout: no fruit detected."}
+
+    return {
+        "detected": False,
+        "error": result.get("error", result.get("response", "Unknown error")),
     }
 
 
@@ -140,7 +147,7 @@ def classify_fruit() -> dict:
     """
     Capture a photo and classify the fruit in it.
     Uses the vision model loaded in LMStudio to analyze the image.
-    Returns 'apple', 'orange', or an error.
+    Returns 'apple', 'orange', or 'unknown'.
     """
     frame = capture_frame()
     if frame is None:
@@ -161,15 +168,14 @@ def classify_fruit() -> dict:
                                 "type": "text",
                                 "text": (
                                     "What fruit is in this image? "
-                                    "Reply with ONLY one word: 'apple' or 'orange'. "
-                                    "If you cannot identify a fruit, reply 'unknown'."
+                                    "Reply with ONLY one word. "
+                                    "Your answer must be exactly one of these: apple, orange, unknown. "
+                                    "No punctuation, no explanation."
                                 ),
                             },
                             {
                                 "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{b64}"
-                                },
+                                "image_url": {"url": f"data:image/jpeg;base64,{b64}"},
                             },
                         ],
                     }
@@ -187,7 +193,6 @@ def classify_fruit() -> dict:
             }
 
         result = response.json()["choices"][0]["message"]["content"].strip().lower()
-
         return {"classification": result}
 
     except requests.exceptions.ConnectionError:
@@ -207,9 +212,9 @@ def sort_fruit(fruit: str) -> dict:
     Activate the Arduino servo to sort a classified fruit.
 
     Args:
-        fruit: The type of fruit to sort. Must be "apple" or "orange".
-              - "apple": activates servo 1 (rotates left 45 degrees)
-              - "orange": activates servo 2 (rotates right 45 degrees)
+        fruit: The type of fruit to sort. Must be 'apple' or 'orange'.
+               - 'apple':  activates servo 1 (rotates left 45 degrees)
+               - 'orange': activates servo 2 (rotates right 45 degrees)
 
     The servo will hold position for 3 seconds to let the fruit pass,
     then return to neutral position.
@@ -221,25 +226,22 @@ def sort_fruit(fruit: str) -> dict:
             "error": f"Invalid fruit type: '{fruit}'. Must be 'apple' or 'orange'."
         }
 
-    # Map to Arduino command
     command = "APPLE" if fruit_lower == "apple" else "ORANGE"
-
-    # Send command to Arduino
-    result = send_arduino_command(command)
+    result = send_arduino_command(command, timeout=SERIAL_TIMEOUT_SORT)
 
     if result["success"]:
-        direction = "left (izquierda)" if fruit_lower == "apple" else "right (derecha)"
+        direction = "left" if fruit_lower == "apple" else "right"
         return {
             "status": "success",
             "fruit": fruit_lower,
-            "action": f"Servo rotated 45° {direction}. Fruit sorted successfully."
+            "action": f"Servo rotated 45° {direction}. Fruit sorted successfully.",
         }
-    else:
-        return {
-            "status": "error",
-            "fruit": fruit_lower,
-            "error": result.get("error", result.get("response", "Unknown error"))
-        }
+
+    return {
+        "status": "error",
+        "fruit": fruit_lower,
+        "error": result.get("error", result.get("response", "Unknown error")),
+    }
 
 
 if __name__ == "__main__":

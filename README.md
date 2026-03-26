@@ -2,16 +2,9 @@
 
 # Clasificador de Frutas con IA (Manzanas y Naranjas)
 
-<img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=24&duration=3000&pause=1000&color=9333EA&center=true&vCenter=true&width=600&lines=Visi%C3%B3n+Artificial+Local;LMStudio+%2B+Arduino;Clasificaci%C3%B3n+Automatizada" alt="Typing SVG" />
-
-<br/>
-
-[![GitHub](https://img.shields.io/badge/GitHub-AndresMondragon2004-181717?style=for-the-badge&logo=github)](https://github.com/AndresMondragon2004)
-[![Arduino](https://img.shields.io/badge/Arduino-Uno-00979D?style=for-the-badge&logo=arduino&logoColor=white)](https://www.arduino.cc/)
-
 </div>
 
----
+
 
 ## Sobre el Proyecto
 
