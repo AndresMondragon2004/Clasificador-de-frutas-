@@ -4,15 +4,14 @@
  * Controla 2 servomotores + sensor ultrasónico HC-SR04
  *
  * Protocolo serial (9600 baud):
- *   APPLE\n      → acciona servo 1 (manzana)
- *   ORANGE\n     → acciona servo 2 (naranja)
+ *   APPLE\n      → acciona servo 1 (manzana) + empuje con servo naranja
+ *   ORANGE\n     → acciona servo 2 (naranja) + empuje con servo manzana
  *   PING\n       → responde PONG
  *   WAIT_FRUIT\n → espera hasta detectar objeto < umbral, responde DETECTED
  *                  o TIMEOUT si pasan 30 s sin detección
  *
  * Responde OK\n tras ejecutar APPLE / ORANGE.
  */
-
 #include <Servo.h>
 
 // === PINES ===
@@ -21,16 +20,28 @@ const int SERVO_ORANGE_PIN = 10;
 const int TRIG_PIN         = 6;
 const int ECHO_PIN         = 7;
 
-// === SERVO: ángulos ===
+// === SERVO: ángulos principales ===
 const int NEUTRAL_ANGLE = 90;
-const int APPLE_ANGLE   = 45;
-const int ORANGE_ANGLE  = 135;
+const int APPLE_ANGLE   = 135;
+const int ORANGE_ANGLE  = 45;
 const int RETURN_DELAY  = 3000;
 
+// === SERVO: ángulos de empuje (pequeño desplazamiento desde neutro) ===
+// El servo contrario hace un pequeño empuje hacia la fruta para ayudarla a rodar
+const int PUSH_OFFSET       = 15;   // Grados de empuje (ajusta si necesitas más/menos fuerza)
+const int PUSH_DELAY        = 400;  // ms que dura el empuje antes de volver a neutro
+const int PUSH_START_DELAY  = 200;  // ms que espera tras abrir compuerta antes de empujar
+
+// Dirección del empuje por servo:
+// - Servo naranja empuja hacia manzana → desde neutro(90) sube hacia 135 → 90 + PUSH_OFFSET
+// - Servo manzana empuja hacia naranja → desde neutro(90) baja hacia 45  → 90 - PUSH_OFFSET
+const int ORANGE_PUSH_ANGLE = NEUTRAL_ANGLE + PUSH_OFFSET;  // 105°
+const int APPLE_PUSH_ANGLE  = NEUTRAL_ANGLE - PUSH_OFFSET;  // 75°
+
 // === SENSOR: parámetros ===
-const float DETECT_THRESHOLD_CM = 10.0;  // Distancia mínima para considerar que hay fruta
-const unsigned long WAIT_TIMEOUT_MS = 30000; // 30 s de timeout
-const int POLL_INTERVAL_MS = 100;            // Medir cada 100 ms
+const float DETECT_THRESHOLD_CM  = 10.0;
+const unsigned long WAIT_TIMEOUT_MS = 30000;
+const int POLL_INTERVAL_MS          = 100;
 
 Servo servoApple;
 Servo servoOrange;
@@ -38,7 +49,6 @@ String inputBuffer = "";
 
 void setup() {
   Serial.begin(9600);
-
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
@@ -64,7 +74,6 @@ void loop() {
 }
 
 // === SENSOR ===
-
 float measureDistanceCm() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
@@ -72,19 +81,16 @@ float measureDistanceCm() {
   delayMicroseconds(10);
   digitalWrite(TRIG_PIN, LOW);
 
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000); // timeout 30 ms
-  if (duration == 0) return 999.0; // sin eco = objeto muy lejos o error
+  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (duration == 0) return 999.0;
   return (duration / 2.0) * 0.0343;
 }
 
 void waitForFruit() {
   unsigned long startTime = millis();
-
   while (millis() - startTime < WAIT_TIMEOUT_MS) {
     float dist = measureDistanceCm();
-
     if (dist > 0 && dist < DETECT_THRESHOLD_CM) {
-      // Pequeña pausa para confirmar que no es ruido
       delay(80);
       float confirm = measureDistanceCm();
       if (confirm > 0 && confirm < DETECT_THRESHOLD_CM) {
@@ -92,15 +98,12 @@ void waitForFruit() {
         return;
       }
     }
-
     delay(POLL_INTERVAL_MS);
   }
-
   Serial.println("TIMEOUT");
 }
 
 // === COMANDOS ===
-
 void processCommand(String command) {
   command.toUpperCase();
 
@@ -123,14 +126,44 @@ void processCommand(String command) {
   }
 }
 
+/*
+ * sortApple:
+ *   1. Abre compuerta manzana (APPLE_ANGLE)
+ *   2. Espera PUSH_START_DELAY para que la compuerta esté abierta
+ *   3. Servo naranja hace pequeño empuje (ORANGE_PUSH_ANGLE) para ayudar a rodar la fruta
+ *   4. Servo naranja vuelve a neutro tras PUSH_DELAY
+ *   5. Espera el resto de RETURN_DELAY y cierra compuerta manzana
+ */
 void sortApple() {
-  servoApple.write(APPLE_ANGLE);
-  delay(RETURN_DELAY);
-  servoApple.write(NEUTRAL_ANGLE);
+  servoApple.write(APPLE_ANGLE);                        // Abre compuerta manzana
+
+  delay(PUSH_START_DELAY);                              // Espera a que esté abierta
+
+  servoOrange.write(ORANGE_PUSH_ANGLE);                 // Empuje naranja → hacia manzana
+  delay(PUSH_DELAY);                                    // Mantiene el empuje
+  servoOrange.write(NEUTRAL_ANGLE);                     // Vuelve a neutro
+
+  delay(RETURN_DELAY - PUSH_START_DELAY - PUSH_DELAY);  // Resta el tiempo ya usado
+  servoApple.write(NEUTRAL_ANGLE);                      // Cierra compuerta manzana
 }
 
+/*
+ * sortOrange:
+ *   1. Abre compuerta naranja (ORANGE_ANGLE)
+ *   2. Espera PUSH_START_DELAY para que la compuerta esté abierta
+ *   3. Servo manzana hace pequeño empuje (APPLE_PUSH_ANGLE) para ayudar a rodar la fruta
+ *   4. Servo manzana vuelve a neutro tras PUSH_DELAY
+ *   5. Espera el resto de RETURN_DELAY y cierra compuerta naranja
+ */
 void sortOrange() {
-  servoOrange.write(ORANGE_ANGLE);
-  delay(RETURN_DELAY);
-  servoOrange.write(NEUTRAL_ANGLE);
+  servoOrange.write(ORANGE_ANGLE);                      // Abre compuerta naranja
+
+  delay(PUSH_START_DELAY);                              // Espera a que esté abierta
+
+  servoApple.write(APPLE_PUSH_ANGLE);                   // Empuje manzana → hacia naranja
+  delay(PUSH_DELAY);                                    // Mantiene el empuje
+  servoApple.write(NEUTRAL_ANGLE);                      // Vuelve a neutro
+
+  delay(RETURN_DELAY - PUSH_START_DELAY - PUSH_DELAY);  // Resta el tiempo ya usado
+  servoOrange.write(NEUTRAL_ANGLE);                     // Cierra compuerta naranja
 }
