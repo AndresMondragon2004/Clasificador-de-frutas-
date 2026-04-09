@@ -12,6 +12,15 @@ Este proyecto es un sistema de clasificación de frutas automatizado que utiliza
 
 ---
 
+## Características Principales
+
+- **Completamente Automático:** Operación continua ("endless loop") sin intervención manual una vez iniciado.
+- **Inferencia Local:** Privacidad total y procesamiento local sin depender de la nube gracias a **LMStudio** y **Qwen3-VL**.
+- **Hardware Accesible:** Diseñado con componentes compatibles con Arduino baratos y fáciles de encontrar.
+- **Integración con MCP:** Listo para ser controlado como herramienta a través del protocolo FastMCP.
+
+---
+
 ## Cómo funciona
 
 1.  **Detección de Presencia:** Un sensor ultrasónico espera a que una fruta llegue a la posición de escaneo.

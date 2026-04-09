@@ -16,7 +16,7 @@ LMSTUDIO_URL   = "http://localhost:1235/v1/chat/completions"
 LMSTUDIO_MODEL = "qwen/qwen3-vl-4b"
 
 SERIAL_PORT    = "COM5"
-SERIAL_BAUD    = 9600
+SERIAL_BAUD    = 115200
 
 # Timeouts
 SERIAL_TIMEOUT_SHORT = 5    # For PING / fast commands
@@ -24,12 +24,12 @@ SERIAL_TIMEOUT_FRUIT = 35   # For WAIT_FRUIT (30s Arduino + 5s margin)
 SERIAL_TIMEOUT_SORT  = 10   # For APPLE / ORANGE (3s servo + margin)
 
 # Classification settings
-MIN_VOTES     = 2   # Minimum matching answers needed to confirm a fruit
-MAX_ATTEMPTS  = 4   # Maximum photos taken per detection event
+MIN_VOTES     = 1   # Minimum matching answers needed to confirm a fruit
+MAX_ATTEMPTS  = 3   # Maximum photos taken per detection event
 
 # Timing
-STABILIZATION_DELAY = 0.5   # Seconds to wait after sensor detection before photo
-PHOTO_INTERVAL      = 0.2   # Seconds between consecutive photo attempts
+STABILIZATION_DELAY = 0.4   # Seconds to wait after sensor detection before photo
+PHOTO_INTERVAL      = 0.0   # Seconds between consecutive photo attempts
 
 app = FastMCP(
     name="Fruit Classifier",
@@ -206,7 +206,7 @@ def _query_vision(b64: str) -> str | None:
                 "temperature": 0,
                 "max_tokens": 10,
             },
-            timeout=60,
+            timeout=15,
         )
         if response.status_code == 200:
             raw = response.json()["choices"][0]["message"]["content"].strip().lower()

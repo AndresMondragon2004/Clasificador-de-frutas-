@@ -3,7 +3,7 @@
  *
  * Controla 2 servomotores + sensor ultrasónico HC-SR04
  *
- * Protocolo serial (9600 baud):
+ * Protocolo serial (115200 baud):
  *   APPLE\n      → acciona servo 1 (manzana) + empuje con servo naranja
  *   ORANGE\n     → acciona servo 2 (naranja) + empuje con servo manzana
  *   PING\n       → responde PONG
@@ -39,16 +39,18 @@ const int ORANGE_PUSH_ANGLE = NEUTRAL_ANGLE + PUSH_OFFSET;  // 105°
 const int APPLE_PUSH_ANGLE  = NEUTRAL_ANGLE - PUSH_OFFSET;  // 75°
 
 // === SENSOR: parámetros ===
-const float DETECT_THRESHOLD_CM  = 10.0;
+const float DETECT_THRESHOLD_CM  = 15.0;
 const unsigned long WAIT_TIMEOUT_MS = 30000;
-const int POLL_INTERVAL_MS          = 100;
+const int POLL_INTERVAL_MS          = 50;
+const int READINGS_WINDOW           = 3;     // Tamaño de ventana de lecturas
+const int READINGS_TO_CONFIRM       = 2;     // Lecturas bajo umbral para confirmar
 
 Servo servoApple;
 Servo servoOrange;
 String inputBuffer = "";
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 
@@ -88,16 +90,28 @@ float measureDistanceCm() {
 
 void waitForFruit() {
   unsigned long startTime = millis();
+
+  // Media móvil: ventana circular de últimas READINGS_WINDOW lecturas
+  float readings[3] = {999.0, 999.0, 999.0};
+  int readIndex = 0;
+
   while (millis() - startTime < WAIT_TIMEOUT_MS) {
-    float dist = measureDistanceCm();
-    if (dist > 0 && dist < DETECT_THRESHOLD_CM) {
-      delay(80);
-      float confirm = measureDistanceCm();
-      if (confirm > 0 && confirm < DETECT_THRESHOLD_CM) {
-        Serial.println("DETECTED");
-        return;
+    readings[readIndex] = measureDistanceCm();
+    readIndex = (readIndex + 1) % READINGS_WINDOW;
+
+    // Contar cuántas lecturas están bajo el umbral
+    int belowCount = 0;
+    for (int i = 0; i < READINGS_WINDOW; i++) {
+      if (readings[i] > 0 && readings[i] < DETECT_THRESHOLD_CM) {
+        belowCount++;
       }
     }
+
+    if (belowCount >= READINGS_TO_CONFIRM) {
+      Serial.println("DETECTED");
+      return;
+    }
+
     delay(POLL_INTERVAL_MS);
   }
   Serial.println("TIMEOUT");
