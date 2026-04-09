@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🍎 Clasificador Automático de Frutas con IA 🍊
+# Clasificador Automático de Frutas con IA
 
 **Sistema de clasificación física en tiempo real que combina Visión Artificial local con Arduino**
 
@@ -13,7 +13,7 @@
 
 ---
 
-## 📋 Descripción del Proyecto
+## Descripción del Proyecto
 
 Este proyecto es un **sistema de clasificación de frutas completamente automatizado** que utiliza **Inteligencia Artificial local** y hardware de código abierto para identificar y separar físicamente manzanas y naranjas.
 
@@ -23,15 +23,15 @@ Todo el proceso es orquestado por un **servidor MCP** (Model Context Protocol) e
 
 ### Características Principales
 
-- 🔄 **Completamente Automático** — Operación continua en bucle infinito sin intervención manual una vez iniciado.
-- 🔒 **Inferencia 100% Local** — Sin dependencias de la nube. El modelo de IA corre localmente con LMStudio.
-- 💰 **Hardware Accesible** — Componentes económicos y fáciles de conseguir.
-- 🤖 **Protocolo MCP** — Controlable mediante lenguaje natural a través de FastMCP.
-- 📷 **Validación Multi-foto** — Sistema de votación con múltiples capturas para reducir errores de clasificación.
+- **Completamente Automático** — Operación continua en bucle infinito sin intervención manual una vez iniciado.
+- **Inferencia 100% Local** — Sin dependencias de la nube. El modelo de IA corre localmente con LMStudio.
+- **Hardware Accesible** — Componentes económicos y fáciles de conseguir.
+- **Protocolo MCP** — Controlable mediante lenguaje natural a través de FastMCP.
+- **Validación Multi-foto** — Sistema de votación con múltiples capturas para reducir errores de clasificación.
 
 ---
 
-## 🔧 Hardware
+## Hardware
 
 ### Componentes utilizados
 
@@ -65,14 +65,14 @@ Todo el proceso es orquestado por un **servidor MCP** (Model Context Protocol) e
 ### Maqueta Física
 
 <!-- 
-  📸 INSTRUCCIONES: Coloca la foto de tu maqueta en assets/maqueta.jpg
+  INSTRUCCIONES: Coloca la foto de tu maqueta en assets/maqueta.jpg
   y descomenta la siguiente línea:
 -->
 <!-- <img src="assets/maqueta.jpg" alt="Foto de la maqueta del clasificador" width="600"/> -->
 
 ---
 
-## ⚙️ Arquitectura del Sistema
+## Arquitectura del Sistema
 
 El sistema se compone de tres capas que se comunican entre sí:
 
@@ -97,18 +97,18 @@ El sistema se compone de tres capas que se comunican entre sí:
 
 ```mermaid
 flowchart TD
-    A["🟢 Inicio del ciclo"] --> B["🔍 Enviar WAIT_FRUIT al Arduino"]
-    B --> C{"¿Fruta detectada?"}
+    A["Inicio del ciclo"] --> B["Enviar WAIT_FRUIT"]
+    B --> C{"¿Detectada?"}
     C -- "TIMEOUT" --> B
-    C -- "DETECTED" --> D["⏳ Esperar estabilización (0.4s)"]
-    D --> E["📷 Capturar foto con la webcam"]
-    E --> F["🧠 Enviar imagen a LMStudio (Qwen3-VL)"]
-    F --> G{"¿Clasificación confirmada?"}
-    G -- "unknown" --> H["🚫 Descartar y volver al inicio"]
+    C -- "DETECTED" --> D["Esperar estabilización"]
+    D --> E["Capturar foto"]
+    E --> F["Clasificar con Qwen3-VL"]
+    F --> G{"¿Confirmada?"}
+    G -- "unknown" --> H["Descartar y reiniciar"]
     H --> B
-    G -- "apple / orange" --> I["🤖 Enviar comando APPLE u ORANGE al Arduino"]
-    I --> J["⚙️ Arduino acciona servo correspondiente"]
-    J --> K["🎉 Fruta clasificada exitosamente"]
+    G -- "apple/orange" --> I["Enviar comando"]
+    I --> J["Accionar servo"]
+    J --> K["Ciclo completado"]
     K --> B
 ```
 
@@ -131,7 +131,7 @@ El servidor captura un frame de la webcam con OpenCV, lo codifica a JPEG en base
 
 ---
 
-## 🧠 Software — Partes Esenciales del Código
+## Software — Partes Esenciales del Código
 
 ### Prompt de Clasificación de la IA
 
@@ -211,17 +211,17 @@ El mecanismo de **empuje** es clave: cuando se clasifica una manzana, el servo d
 
 ---
 
-## 🎬 Demo
+## Demo
 
 <!-- 
-  🎥 INSTRUCCIONES: Coloca tu video en assets/demo.mp4
+  INSTRUCCIONES: Coloca tu video en assets/demo.mp4
   y descomenta la siguiente línea:
 -->
 <!-- https://github.com/user-attachments/assets/VIDEO_ID -->
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 <div align="center">
 
@@ -245,12 +245,15 @@ El mecanismo de **empuje** es clave: cuando se clasifica una manzana, el servo d
 
 ---
 
-## 🚀 Configuración Rápida
+## Configuración Rápida
 
 ### 1. LMStudio
 - Descarga e instala [LMStudio](https://lmstudio.ai/).
 - Carga el modelo `qwen/qwen3-vl-4b` (o cualquier modelo de visión compatible).
-- Inicia el servidor local en el puerto `1235`.
+- Inicia un segundo servidor local para analizar la imagen con el comando:
+  ```bash
+  lms server start --port 1235
+  ```
 
 ### 2. Arduino
 - Abre `fruit_sorter.ino` en el IDE de Arduino.
@@ -264,7 +267,7 @@ pip install fastmcp opencv-python pyserial requests
 
 # Configurar el puerto serial en server.py (ej. COM5 en Windows, /dev/ttyACM0 en Linux)
 # Ejecutar el servidor
-python server.py
+fastmcp run server.py:app --transport=http
 ```
 
 ### 4. Cliente MCP
@@ -272,7 +275,7 @@ Conecta un cliente MCP compatible (como Claude Desktop) al servidor y escribe **
 
 ---
 
-## 📁 Estructura del Repositorio
+## Estructura del Repositorio
 
 ```
 fruit_sorter/
