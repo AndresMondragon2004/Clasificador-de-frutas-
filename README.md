@@ -19,14 +19,14 @@ Este proyecto es un **sistema de clasificación de frutas completamente automati
 
 El sistema funciona de la siguiente manera: una fruta se coloca en una rampa; un **sensor ultrasónico** detecta su presencia, una **webcam** captura la imagen y un **modelo de visión artificial** (Qwen3-VL ejecutado localmente en LMStudio) identifica de qué fruta se trata. Finalmente, **servomotores** controlados por Arduino desvían la fruta hacia el contenedor correcto.
 
-Todo el proceso es orquestado por un **servidor MCP** (Model Context Protocol) escrito en Python con FastMCP, lo que permite controlarlo mediante lenguaje natural desde cualquier cliente compatible como Claude Desktop.
+Todo el proceso es orquestado por un **servidor MCP** (Model Context Protocol) escrito en Python con FastMCP. El usuario interactúa con el sistema a través del chat de **LMStudio**: simplemente escribe "Iniciar" y el modelo Qwen3-VL llama automáticamente las herramientas MCP para operar todo el pipeline.
 
 ### Características Principales
 
 - **Completamente Automático** — Operación continua en bucle infinito sin intervención manual una vez iniciado.
 - **Inferencia 100% Local** — Sin dependencias de la nube. El modelo de IA corre localmente con LMStudio.
 - **Hardware Accesible** — Componentes económicos y fáciles de conseguir.
-- **Protocolo MCP** — Controlable mediante lenguaje natural a través de FastMCP.
+- **Protocolo MCP** — Controlable mediante lenguaje natural desde el chat de LMStudio a través de FastMCP.
 - **Validación Multi-foto** — Sistema de votación con múltiples capturas para reducir errores de clasificación.
 
 ---
@@ -68,29 +68,24 @@ Todo el proceso es orquestado por un **servidor MCP** (Model Context Protocol) e
   INSTRUCCIONES: Coloca la foto de tu maqueta en assets/maqueta.jpg
   y descomenta la siguiente línea:
 -->
-<!-- <img src="assets/maqueta.jpg" alt="Foto de la maqueta del clasificador" width="600"/> -->
+<img src="assets/maqueta.jpeg" alt="Foto de la maqueta del clasificador" width="600"/> 
 
 ---
 
 ## Arquitectura del Sistema
 
-El sistema se compone de tres capas que se comunican entre sí:
+LMStudio cumple un **doble rol** en este sistema: es la interfaz donde el usuario interactúa con el modelo (chat + MCP tools) y también sirve como servidor de visión artificial (API en puerto 1235) para clasificar las imágenes.
 
-```
-┌─────────────────────┐     lenguaje natural     ┌──────────────────────┐
-│   Cliente MCP       │ ◄──────────────────────► │   server.py          │
-│   (Claude Desktop)  │      (streamable-http)   │   (FastMCP Server)   │
-└─────────────────────┘                          └──────┬───────┬───────┘
-                                                        │       │
-                                              HTTP API  │       │  Serial
-                                             (localhost) │       │  (115200 baud)
-                                                        ▼       ▼
-                                                ┌───────────┐ ┌──────────┐
-                                                │ LMStudio  │ │ Arduino  │
-                                                │ Qwen3-VL  │ │ UNO R3   │
-                                                └───────────┘ └──────────┘
-                                                  Clasifica     Sensor +
-                                                  la imagen     Servos
+```mermaid
+graph LR
+    A["LMStudio<br/>Chat + MCP Client<br/>(Qwen3-VL 4B)"]
+    B["server.py<br/>FastMCP Server"]
+    C["LMStudio<br/>Vision API<br/>(localhost:1235)"]
+    D["Arduino UNO R3<br/>Sensor + Servos"]
+
+    A <-->|"lenguaje natural · streamable-http"| B
+    B -->|"HTTP API · /v1/chat/completions"| C
+    B -->|"Serial · 115200 baud"| D
 ```
 
 ### Flujo de un ciclo completo
@@ -155,7 +150,7 @@ Este es el prompt exacto que se envía al modelo de visión para clasificar cada
 
 ### Tools MCP (Herramientas del servidor)
 
-El servidor expone 7 herramientas via MCP que el cliente (Claude Desktop) puede invocar:
+El servidor expone 7 herramientas via MCP que el modelo en LMStudio puede invocar:
 
 | Tool | Descripción |
 |:---|:---|
@@ -165,28 +160,41 @@ El servidor expone 7 herramientas via MCP que el cliente (Claude Desktop) puede 
 | `sort_fruit(fruit)` | Envía comando al Arduino para accionar el servo correspondiente |
 | `start_sorting_loop()` | **Inicia el bucle automático** de clasificación en segundo plano |
 | `stop_sorting_loop()` | Detiene el bucle automático |
-| `get_loop_status()` | Devuelve los eventos nuevos del bucle (para que el cliente los narre) |
+| `get_loop_status()` | Devuelve los eventos nuevos del bucle (para que el modelo los narre) |
 
 ### Cómo se comunican las Tools entre sí
 
 El sistema tiene dos modos de operación:
 
-**Modo Manual** — El cliente invoca las tools una por una:
-```
-wait_for_fruit() → classify_fruit() → sort_fruit("apple")
+**Modo Manual** — El modelo invoca las tools una por una:
+
+```mermaid
+flowchart LR
+    A[wait_for_fruit] --> B[classify_fruit] --> C["sort_fruit('apple')"]
 ```
 
 **Modo Automático** — El flujo completo corre en un thread en segundo plano:
-```
-start_sorting_loop()
-  └─ Internamente ejecuta en bucle infinito:
-       wait_for_fruit → classify_with_retries → sort_fruit
-  └─ El cliente solo llama get_loop_status() cada ~5 segundos
-       para obtener los eventos nuevos y narrarlos al usuario.
-stop_sorting_loop()
+
+```mermaid
+sequenceDiagram
+    participant M as Modelo (LMStudio)
+    participant T as Thread en segundo plano
+
+    M->>T: start_sorting_loop()
+    loop cada ciclo
+        T->>T: wait_for_fruit
+        T->>T: classify_with_retries
+        T->>T: sort_fruit
+    end
+    loop cada ~5 segundos
+        M->>T: get_loop_status()
+        T-->>M: eventos nuevos
+        note over M: Narra los eventos<br/>al usuario en español
+    end
+    M->>T: stop_sorting_loop()
 ```
 
-El `system prompt` del servidor MCP instruye al modelo cliente (Claude) a:
+El campo `instructions` del servidor MCP instruye al modelo Qwen3-VL (en LMStudio) a:
 1. Llamar `start_sorting_loop()` cuando el usuario diga "iniciar"
 2. Llamar `get_loop_status()` automáticamente cada 3-5 segundos
 3. Traducir los eventos a lenguaje natural en español
@@ -196,15 +204,17 @@ El `system prompt` del servidor MCP instruye al modelo cliente (Claude) a:
 
 El Arduino implementa un protocolo serial simple basado en texto. Cada comando termina en `\n` y cada respuesta termina en `\n`:
 
-```
-[server.py]  ──── "WAIT_FRUIT\n" ────►  [Arduino]
-[server.py]  ◄──── "DETECTED\n" ─────  [Arduino]  (cuando sensor < 15cm)
+```mermaid
+sequenceDiagram
+    participant S as server.py
+    participant A as Arduino
 
-[server.py]  ──── "APPLE\n" ────────►  [Arduino]
-                                        │ Servo manzana → 135°
-                                        │ Servo naranja empuja (105°)
-                                        │ Ambos vuelven a 90°
-[server.py]  ◄──── "OK\n" ──────────  [Arduino]
+    S->>A: WAIT_FRUIT
+    A-->>S: DETECTED (sensor < 15 cm)
+
+    S->>A: APPLE
+    note over A: Servo manzana → 135°<br/>Servo naranja empuja (105°)<br/>Ambos vuelven a 90°
+    A-->>S: OK
 ```
 
 El mecanismo de **empuje** es clave: cuando se clasifica una manzana, el servo de la manzana abre la compuerta (135°) y el servo de la naranja hace un pequeño empuje (de 90° a 105°) para ayudar a la fruta a rodar hacia el contenedor. Lo mismo ocurre a la inversa.
@@ -213,44 +223,14 @@ El mecanismo de **empuje** es clave: cuando se clasifica una manzana, el servo d
 
 ## Demo
 
-<!-- 
-  INSTRUCCIONES: Coloca tu video en assets/demo.mp4
-  y descomenta la siguiente línea:
--->
-<!-- https://github.com/user-attachments/assets/VIDEO_ID -->
-
----
-
-## Tech Stack
-
-<div align="center">
-
-### IA & Visión
-![LMStudio](https://img.shields.io/badge/LMStudio-Local_Inference-black?style=flat-square)
-![Qwen3-VL](https://img.shields.io/badge/Model-Qwen3--VL--4b-9333EA?style=flat-square)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
-
-### Software
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
-![FastMCP](https://img.shields.io/badge/FastMCP-MCP_Server-orange?style=flat-square)
-![PySerial](https://img.shields.io/badge/PySerial-3.5-yellow?style=flat-square)
-
-### Hardware
-![Arduino](https://img.shields.io/badge/Arduino_Uno-R3-00979D?style=flat-square&logo=arduino&logoColor=white)
-![Servos](https://img.shields.io/badge/Servos-MG995-red?style=flat-square)
-![Sensor](https://img.shields.io/badge/Sensor-HC--SR04-blue?style=flat-square)
-![Webcam](https://img.shields.io/badge/Webcam-USB-grey?style=flat-square)
-
-</div>
-
----
+<img src="assets/demo.gif" alt="Demo del clasificador de frutas" width="700"/>
 
 ## Configuración Rápida
 
 ### 1. LMStudio
 - Descarga e instala [LMStudio](https://lmstudio.ai/).
-- Carga el modelo `qwen/qwen3-vl-4b` (o cualquier modelo de visión compatible).
-- Inicia un segundo servidor local para analizar la imagen con el comando:
+- Carga el modelo `qwen/qwen3-vl-4b` (o cualquier modelo de visión compatible con herramientas).
+- Inicia el servidor de visión en el puerto `1235`:
   ```bash
   lms server start --port 1235
   ```
@@ -266,12 +246,14 @@ El mecanismo de **empuje** es clave: cuando se clasifica una manzana, el servo d
 pip install fastmcp opencv-python pyserial requests
 
 # Configurar el puerto serial en server.py (ej. COM5 en Windows, /dev/ttyACM0 en Linux)
-# Ejecutar el servidor
+# Ejecutar el servidor MCP
 fastmcp run server.py:app --transport=http
 ```
 
-### 4. Cliente MCP
-Conecta un cliente MCP compatible (como Claude Desktop) al servidor y escribe **"Iniciar"** para activar el sistema automático.
+### 4. Usar el sistema
+- En LMStudio, abre un chat con el modelo `qwen3-vl-4b`.
+- Las herramientas MCP del servidor aparecerán automáticamente.
+- Escribe **"Iniciar"** en el chat y el modelo activará el sistema automático de clasificación.
 
 ---
 
@@ -283,8 +265,8 @@ fruit_sorter/
 ├── fruit_sorter.ino       # Sketch de Arduino — control de servos y sensor
 ├── assets/
 │   ├── circuit_diagram.png   # Diagrama del circuito (Tinkercad)
-│   ├── maqueta.jpg           # Foto de la maqueta física
-│   └── demo.mp4              # Video demostrativo del sistema
+│   ├── demo.gif              # GIF con demostración del funcionamiento
+│   └── maqueta.jpeg          # Fotografía de la maqueta física
 └── README.md              # Este archivo
 ```
 
@@ -292,9 +274,11 @@ fruit_sorter/
 
 <div align="center">
 
-**Hecho por [Jesús Andrés Mondragón Tenorio](https://github.com/AndresMondragon2004)**
+### Desarrolladores
 
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/AndresMondragon2004)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/andres-mondragon-tenorio/)
+**[Jesús Andrés Mondragón Tenorio](https://github.com/AndresMondragon2004)**
 
+**[Cristofer Piña Rodriguez](https://github.com/cristoferpina)**
+
+**[Mauricio Sanchez Garcia](https://github.com/mau05126-jpg)**
 </div>
