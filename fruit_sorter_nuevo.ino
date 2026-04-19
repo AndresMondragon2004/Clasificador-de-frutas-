@@ -6,9 +6,8 @@
  * Protocolo serial (115200 baud):
  *   APPLE\n      → acciona servo 1 (manzana) + empuje con servo naranja
  *   ORANGE\n     → acciona servo 2 (naranja) + empuje con servo manzana
- *   PING\n       → responde PONG
- *   WAIT_FRUIT\n → espera hasta detectar objeto < umbral, responde DETECTED
- *                  o TIMEOUT si pasan 30 s sin detección
+ *   PING\n         → responde PONG
+ *   GET_DISTANCE\n → responde con la distancia en cm (ej. "12.34")
  *
  * Responde OK\n tras ejecutar APPLE / ORANGE.
  */
@@ -39,11 +38,7 @@ const int ORANGE_PUSH_ANGLE = NEUTRAL_ANGLE + PUSH_OFFSET;  // 105°
 const int APPLE_PUSH_ANGLE  = NEUTRAL_ANGLE - PUSH_OFFSET;  // 75°
 
 // === SENSOR: parámetros ===
-const float DETECT_THRESHOLD_CM  = 15.0;
-const unsigned long WAIT_TIMEOUT_MS = 30000;
-const int POLL_INTERVAL_MS          = 50;
-const int READINGS_WINDOW           = 3;     // Tamaño de ventana de lecturas
-const int READINGS_TO_CONFIRM       = 2;     // Lecturas bajo umbral para confirmar
+// (sin umbral ni timeout — la lógica de detección vive ahora en Python)
 
 Servo servoApple;
 Servo servoOrange;
@@ -76,7 +71,7 @@ void loop() {
 }
 
 // === SENSOR ===
-float measureDistanceCm() {
+float get_distance() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
   digitalWrite(TRIG_PIN, HIGH);
@@ -86,35 +81,6 @@ float measureDistanceCm() {
   long duration = pulseIn(ECHO_PIN, HIGH, 30000);
   if (duration == 0) return 999.0;
   return (duration / 2.0) * 0.0343;
-}
-
-void waitForFruit() {
-  unsigned long startTime = millis();
-
-  // Media móvil: ventana circular de últimas READINGS_WINDOW lecturas
-  float readings[3] = {999.0, 999.0, 999.0};
-  int readIndex = 0;
-
-  while (millis() - startTime < WAIT_TIMEOUT_MS) {
-    readings[readIndex] = measureDistanceCm();
-    readIndex = (readIndex + 1) % READINGS_WINDOW;
-
-    // Contar cuántas lecturas están bajo el umbral
-    int belowCount = 0;
-    for (int i = 0; i < READINGS_WINDOW; i++) {
-      if (readings[i] > 0 && readings[i] < DETECT_THRESHOLD_CM) {
-        belowCount++;
-      }
-    }
-
-    if (belowCount >= READINGS_TO_CONFIRM) {
-      Serial.println("DETECTED");
-      return;
-    }
-
-    delay(POLL_INTERVAL_MS);
-  }
-  Serial.println("TIMEOUT");
 }
 
 // === COMANDOS ===
@@ -132,8 +98,8 @@ void processCommand(String command) {
   else if (command == "PING") {
     Serial.println("PONG");
   }
-  else if (command == "WAIT_FRUIT") {
-    waitForFruit();
+  else if (command == "GET_DISTANCE") {
+    Serial.println(get_distance());
   }
   else {
     Serial.println("ERROR:UNKNOWN_COMMAND");
