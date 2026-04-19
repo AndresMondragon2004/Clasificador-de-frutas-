@@ -1,5 +1,0 @@
-opencv-python
-pyserial
-requests
-fastmcp
-colorama
