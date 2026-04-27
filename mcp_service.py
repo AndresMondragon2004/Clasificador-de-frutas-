@@ -14,21 +14,20 @@ Usage:
 
 import arduino
 import camera
-import llm
 from fastmcp import FastMCP
 
 app = FastMCP(
     name="Fruit Classifier Machine Control",
     instructions="""
-    Tools for controlling a fruit sorting machine with Arduino, camera,
-    and vision classification. Available tools:
+    Tools for controlling a fruit sorting machine with Arduino and camera.
+    Available tools:
 
     - ping_machine: Test Arduino connection
     - get_distance: Read ultrasonic sensor distance
     - wait_for_fruit: Block until a fruit is detected
-    - classify_fruit: Capture photo and classify the fruit
-    - sort_apple: Activate servo – sort as apple
-    - sort_orange: Activate servo – sort as orange
+    - capture_photo: Capture a photo from the camera
+    - sort_to_left: Sort fruit to the left bin
+    - sort_to_right: Sort fruit to the right bin
     """,
 )
 
@@ -61,30 +60,25 @@ def wait_for_fruit(threshold_cm: float = 20.0, timeout_seconds: int = 30) -> dic
 
 
 @app.tool()
-def classify_fruit() -> dict:
-    """Capture a photo and classify the fruit using the vision model."""
+def capture_photo() -> dict:
+    """Capture a photo from the camera and return it as base64 JPEG."""
     image_b64 = camera.get_camera_data()
     if image_b64 is None:
         return {"error": "Camera not available."}
-
-    label = llm.classify_image(image_b64)
-    if label is None:
-        return {"error": f"Cannot connect to LMStudio at {llm.LMSTUDIO_URL}"}
-
-    return {"classification": label if label in ("apple", "orange") else "unknown"}
+    return {"image_b64": image_b64}
 
 
 @app.tool()
-def sort_apple() -> dict:
-    """Activate the servo to sort the current fruit as an apple."""
+def sort_to_left() -> dict:
+    """Sort the current fruit to the LEFT bin (activates left servo)."""
     return arduino.classify_as_apple()
 
 
 @app.tool()
-def sort_orange() -> dict:
-    """Activate the servo to sort the current fruit as an orange."""
+def sort_to_right() -> dict:
+    """Sort the current fruit to the RIGHT bin (activates right servo)."""
     return arduino.classify_as_orange()
 
 
 if __name__ == "__main__":
-    app.run(transport="streamable-http")
+    app.run(transport="sse", port=8000)

@@ -1,5 +1,5 @@
 opencv-python
 pyserial
-requests
+lmstudio
 fastmcp
 colorama
