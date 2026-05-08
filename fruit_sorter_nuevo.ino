@@ -1,23 +1,26 @@
 /*
  * Fruit Sorter — Arduino Uno
  *
- * Controla 2 servomotores + sensor ultrasónico HC-SR04
+ * Controla 2 servomotores + sensor láser VL53L0X (I2C)
  *
  * Protocolo serial (115200 baud):
  *   APPLE\n      → acciona servo 1 (manzana) + empuje con servo naranja
  *   ORANGE\n     → acciona servo 2 (naranja) + empuje con servo manzana
- *   PING\n         → responde PONG
+ *   PING\n       → responde PONG
  *   GET_DISTANCE\n → responde con la distancia en cm (ej. "12.34")
  *
  * Responde OK\n tras ejecutar APPLE / ORANGE.
  */
 #include <Servo.h>
+#include "Adafruit_VL53L0X.h"
+
+// === SENSOR LÁSER VL53L0X ===
+Adafruit_VL53L0X sensor;
 
 // === PINES ===
 const int SERVO_APPLE_PIN  = 9;
 const int SERVO_ORANGE_PIN = 10;
-const int TRIG_PIN         = 6;
-const int ECHO_PIN         = 7;
+// Nota: el VL53L0X usa I2C (SDA = A4, SCL = A5 en Uno). No requiere pines digitales adicionales.
 
 // === SERVO: ángulos principales ===
 const int NEUTRAL_ANGLE = 90;
@@ -37,8 +40,10 @@ const int PUSH_START_DELAY  = 200;  // ms que espera tras abrir compuerta antes 
 const int ORANGE_PUSH_ANGLE = NEUTRAL_ANGLE + PUSH_OFFSET;  // 105°
 const int APPLE_PUSH_ANGLE  = NEUTRAL_ANGLE - PUSH_OFFSET;  // 75°
 
-// === SENSOR: parámetros ===
-// (sin umbral ni timeout — la lógica de detección vive ahora en Python)
+// === SENSOR: rango válido (en mm para la librería, convertimos a cm al reportar) ===
+// Detección máxima configurada en 13 cm (130 mm)
+const int SENSOR_MIN_MM = 30;   // Mínimo: 3 cm — evita falsas lecturas muy cercanas
+const int SENSOR_MAX_MM = 130;  // Máximo: 13 cm — rango de detección de la fruta
 
 Servo servoApple;
 Servo servoOrange;
@@ -46,8 +51,14 @@ String inputBuffer = "";
 
 void setup() {
   Serial.begin(115200);
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
+
+  if (!sensor.begin()) {
+    Serial.println("ERROR:SENSOR_INIT");
+    while (1);  // Detener si el sensor no responde
+  }
+
+  // Alta precisión para lecturas consistentes a corta distancia
+  sensor.configSensor(Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY);
 
   servoApple.attach(SERVO_APPLE_PIN);
   servoOrange.attach(SERVO_ORANGE_PIN);
@@ -72,15 +83,23 @@ void loop() {
 
 // === SENSOR ===
 float get_distance() {
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
+  VL53L0X_RangingMeasurementData_t medicion;
+  sensor.rangingTest(&medicion, false);
 
-  long duration = pulseIn(ECHO_PIN, HIGH, 30000);
-  if (duration == 0) return 999.0;
-  return (duration / 2.0) * 0.0343;
+  // RangeStatus == 4 → lectura inválida / fuera de rango
+  if (medicion.RangeStatus == 4) {
+    return 999.0;
+  }
+
+  int mm = medicion.RangeMilliMeter;
+
+  // Filtrar lecturas fuera del rango de trabajo
+  if (mm < SENSOR_MIN_MM || mm > SENSOR_MAX_MM) {
+    return 999.0;
+  }
+
+  // Convertir mm → cm con un decimal de precisión
+  return mm / 10.0;
 }
 
 // === COMANDOS ===

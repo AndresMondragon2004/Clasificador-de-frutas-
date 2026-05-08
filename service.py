@@ -58,7 +58,7 @@ _running = False
 _stats = {"cycles": 0, "sorted": 0, "discarded": 0, "errors": 0, "last_error": None}
 
 # === CONFIGURATION ===
-DETECTION_THRESHOLD_CM = 20.0
+DETECTION_THRESHOLD_CM = 13.0
 STABILIZATION_DELAY = 0.4
 SENSOR_TIMEOUT = 30
 
@@ -229,8 +229,8 @@ def parse_args() -> argparse.Namespace:
         help="LMStudio model name (default: qwen/qwen3-vl-4b)",
     )
     parser.add_argument(
-        "--threshold", type=float, default=20.0,
-        help="Detection threshold in cm (default: 20.0)",
+        "--threshold", type=float, default=13.0,
+        help="Detection threshold in cm (default: 13.0 — VL53L0X max range)",
     )
     parser.add_argument(
         "--sensor-timeout", type=int, default=30, dest="sensor_timeout",

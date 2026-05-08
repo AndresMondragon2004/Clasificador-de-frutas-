@@ -3,6 +3,10 @@ arduino.py — Persistent serial connection to the Fruit Sorter Arduino.
 
 Provides a thread-safe, auto-reconnecting serial interface.
 Supports auto-detection of the Arduino port on Linux and Windows.
+
+Sensor: VL53L0X (láser I2C). El Arduino convierte mm → cm antes de enviar
+la respuesta al comando GET_DISTANCE. El umbral de detección por defecto
+es 13 cm, que corresponde al rango máximo configurado en el firmware.
 """
 
 import time
@@ -76,7 +80,7 @@ def ping() -> dict:
 
 
 def get_distance() -> float:
-    """Get the current distance reading from the ultrasonic sensor (cm)."""
+    """Get the current distance reading from the VL53L0X laser sensor (cm)."""
     result = send_command("GET_DISTANCE")
     try:
         return float(result["response"])
@@ -84,9 +88,13 @@ def get_distance() -> float:
         return 999.0
 
 
-def wait_for_fruit(threshold_cm: float = 20.0, timeout_seconds: int = 30) -> dict:
+def wait_for_fruit(threshold_cm: float = 13.0, timeout_seconds: int = 30) -> dict:
     """
-    Poll the ultrasonic sensor until an object is detected within threshold_cm.
+    Poll the VL53L0X laser sensor until an object is detected within threshold_cm.
+
+    El firmware ya filtra lecturas fuera del rango 3–13 cm y devuelve 999.0
+    cuando no hay objeto válido, por lo que cualquier valor < threshold_cm
+    corresponde a una fruta presente.
 
     Returns:
         {"detected": True/False, "distance_cm": ..., "message": ...}
