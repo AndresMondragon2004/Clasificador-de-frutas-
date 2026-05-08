@@ -1,9 +1,8 @@
 """
-tools.py — Sorting tools exposed to the LLM agent (V4 - Requests Version).
+tools.py — Sorting tools exposed to the LLM agent (V4+ - Optimized Version).
 
-These are the tools the model can call via the OpenAI-compatible API 
-to physically sort fruits. Adding a new fruit only requires editing 
-the prompt in llm.py.
+These tools now accept a 'fruit_name' argument so the AI can explicitly
+report what it identified.
 """
 
 import arduino
@@ -12,37 +11,33 @@ import base64
 
 # === TOOL IMPLEMENTATIONS ===
 
-def sort_to_left() -> str:
-    """Sort the detected fruit to the LEFT bin by activating the left servo."""
+def sort_to_left(fruit_name: str = "Fruit") -> str:
+    """Sort the detected fruit to the LEFT bin."""
     result = arduino.classify_as_apple()
     if result["success"]:
-        return "Done. The fruit has been sorted to the LEFT bin."
-    return f"Error sorting to left: {result.get('error', result.get('response', 'unknown'))}"
+        return f"SUCCESS:{fruit_name}:LEFT"
+    return f"ERROR:Sorting failed for {fruit_name}"
 
 
-def sort_to_right() -> str:
-    """Sort the detected fruit to the RIGHT bin by activating the right servo."""
+def sort_to_right(fruit_name: str = "Fruit") -> str:
+    """Sort the detected fruit to the RIGHT bin."""
     result = arduino.classify_as_orange()
     if result["success"]:
-        return "Done. The fruit has been sorted to the RIGHT bin."
-    return f"Error sorting to right: {result.get('error', result.get('response', 'unknown'))}"
+        return f"SUCCESS:{fruit_name}:RIGHT"
+    return f"ERROR:Sorting failed for {fruit_name}"
 
 
 def discard_fruit() -> str:
-    """Discard the fruit — do not sort it. Use when the fruit is unknown or unrecognizable."""
-    return "Fruit discarded. No servo was activated."
+    """Discard the fruit — do not sort it."""
+    return "DISCARD:Unknown Item"
 
 
 def get_camera_image() -> str:
-    """
-    Take a new photo from the camera. Use this if the previous image was
-    unclear or you need another look at the fruit before deciding.
-    Returns a base64-encoded JPEG image.
-    """
+    """Take a new photo from the camera."""
     image_b64 = camera.get_camera_data()
     if image_b64 is None:
-        return "Error: Camera is not available."
-    return f"Here is the new photo (base64 JPEG): {image_b64}"
+        return "ERROR:Camera unavailable"
+    return f"NEW_IMAGE_READY:{image_b64}"
 
 
 # === API SCHEMAS (OpenAI Format) ===
@@ -55,8 +50,13 @@ TOOLS_SCHEMA = [
             "description": "Sort the detected fruit to the LEFT bin (e.g., for apples).",
             "parameters": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "fruit_name": {
+                        "type": "string",
+                        "description": "The specific name of the fruit (e.g., 'Red Apple', 'Green Apple')."
+                    }
+                },
+                "required": ["fruit_name"]
             }
         }
     },
@@ -67,8 +67,13 @@ TOOLS_SCHEMA = [
             "description": "Sort the detected fruit to the RIGHT bin (e.g., for oranges).",
             "parameters": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "fruit_name": {
+                        "type": "string",
+                        "description": "The specific name of the fruit (e.g., 'Navel Orange', 'Tangerine')."
+                    }
+                },
+                "required": ["fruit_name"]
             }
         }
     },
@@ -76,11 +81,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "discard_fruit",
-            "description": "Discard the fruit. Use when the fruit is unknown, unclear, or no fruit is visible.",
+            "description": "Discard the fruit when unknown or no fruit is visible.",
             "parameters": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {}
             }
         }
     },
@@ -88,11 +92,10 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "get_camera_image",
-            "description": "Take a new photo from the camera for a better look at the fruit.",
+            "description": "Take another photo if the first one was unclear.",
             "parameters": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {}
             }
         }
     }

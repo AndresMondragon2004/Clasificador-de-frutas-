@@ -10,10 +10,10 @@ import base64
 import threading
 
 # === CONFIGURATION ===
-CAMERA_INDEX = 1  # Try 0 first on Linux; override if needed
-WARMUP_FRAMES = 3
-MAX_IMAGE_SIZE = 512
-JPEG_QUALITY = 85
+CAMERA_INDEX = 0  # Default to first camera
+WARMUP_FRAMES = 2
+MAX_IMAGE_SIZE = 384
+JPEG_QUALITY = 75
 
 # === INTERNAL STATE ===
 _camera_lock = threading.Lock()

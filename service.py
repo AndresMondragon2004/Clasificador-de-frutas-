@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """
-service.py — Autonomous fruit sorting loop (Agentic Architecture).
+service.py — Autonomous fruit sorting loop (Agentic Architecture V4+).
 
 Orchestrates the pipeline: sensor detection → image capture →
-LLM agent (.act()) decides and sorts. The LLM calls tools directly
-— no hardcoded fruit conditionals in Python.
+LLM agent decides (via requests) and sorts. 
 
-Usage:
-    python service.py
-    python service.py --port /dev/ttyUSB0 --threshold 15
+Now with improved aesthetics and fruit name identification.
 """
 
 import argparse
@@ -21,7 +18,7 @@ import arduino
 import camera
 import llm
 
-# === ANSI COLORS (no external deps) ===
+# === ANSI COLORS ===
 RESET = "\033[0m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
@@ -32,6 +29,9 @@ BLUE = "\033[94m"
 CYAN = "\033[96m"
 WHITE = "\033[97m"
 MAGENTA = "\033[95m"
+BG_GREEN = "\033[42m"
+BG_BLUE = "\033[44m"
+BG_RED = "\033[41m"
 
 
 def c(color: str, text: str) -> str:
@@ -40,9 +40,9 @@ def c(color: str, text: str) -> str:
 
 def banner(title: str, color: str = CYAN) -> None:
     width = 60
-    print(f"\n{color}{'─' * width}{RESET}")
+    print(f"\n{color}{'━' * width}{RESET}")
     print(f"{BOLD}{color}  {title}{RESET}")
-    print(f"{color}{'─' * width}{RESET}\n")
+    print(f"{color}{'━' * width}{RESET}\n")
 
 
 def timestamp() -> str:
@@ -53,233 +53,135 @@ def log(msg: str, color: str = WHITE) -> None:
     print(f"{DIM}[{timestamp()}]{RESET} {color}{msg}{RESET}")
 
 
+def print_result_box(status: str) -> None:
+    """Prints a beautiful summary box for the sorting result."""
+    # Status format: SUCCESS:FruitName:Direction or DISCARD:Reason
+    parts = status.split(":")
+    
+    print("\n" + " " * 4 + "┏" + "━" * 50 + "┓")
+    
+    if parts[0] == "SUCCESS":
+        fruit = parts[1]
+        direction = parts[2]
+        icon = "🍎" if direction == "LEFT" else "🍊"
+        color_bg = BG_GREEN if direction == "LEFT" else BG_BLUE
+        
+        print(" " * 4 + "┃" + f"  {icon}  {BOLD}{WHITE}FRUTA CLASIFICADA{RESET}".center(58) + "┃")
+        print(" " * 4 + "┃" + f"  {BOLD}IDENTIFICADO:{RESET} {c(YELLOW, fruit.upper())}".center(58) + "┃")
+        print(" " * 4 + "┃" + f"  {BOLD}ACCIÓN:{RESET} {color_bg}{WHITE} MOVER A {direction} {RESET}".center(67) + "┃")
+    
+    elif parts[0] == "DISCARD":
+        print(" " * 4 + "┃" + f"  ⚠️  {BOLD}{WHITE}OBJETO DESCARTADO{RESET}".center(58) + "┃")
+        print(" " * 4 + "┃" + f"  {BOLD}MOTIVO:{RESET} {c(RED, parts[1])}".center(58) + "┃")
+    
+    else:
+        print(" " * 4 + "┃" + f"  ❌  {BOLD}{RED}ERROR DE AGENTE{RESET}".center(58) + "┃")
+        print(" " * 4 + "┃" + f"  {content[:46]}...".center(50) + "┃")
+
+    print(" " * 4 + "┗" + "━" * 50 + "┛\n")
+
+
 # === STATE ===
 _running = False
-_stats = {"cycles": 0, "sorted": 0, "discarded": 0, "errors": 0, "last_error": None}
-
-# === CONFIGURATION ===
-DETECTION_THRESHOLD_CM = 13.0
-STABILIZATION_DELAY = 0.4
-SENSOR_TIMEOUT = 30
-
+_stats = {"cycles": 0, "sorted": 0, "discarded": 0}
 
 # === AGENT MESSAGE HANDLER ===
 
-def _on_agent_message(message) -> None:
+def _on_agent_message(role: str, content: str) -> None:
     """Log messages from the LLM agent during .act() execution."""
-    role = getattr(message, "role", "unknown")
-    content = str(message) if message else ""
-
     if role == "tool":
-        # Tool was called by the agent
-        log(f"  🔧 Tool ejecutada: {content[:120]}", BLUE)
-    elif role == "assistant" and content:
-        log(f"  🤖 Agente: {content[:120]}", MAGENTA)
+        log(f"  🔧 IA llamando a: {c(YELLOW, content)}", BLUE)
+    elif role == "assistant":
+        # Limit assistant text to avoid clutter
+        log(f"  🤖 IA pensando: {c(DIM, content[:80])}...", MAGENTA)
 
 
 # === MAIN SORTING LOOP ===
 
-def sorting_loop(
-    sensor_timeout: int = SENSOR_TIMEOUT,
-    threshold_cm: float = DETECTION_THRESHOLD_CM,
-) -> None:
-    """Main sorting pipeline — runs until Ctrl+C."""
+def sorting_loop(threshold_cm: float = 13.0) -> None:
     global _running
-
     log("🟢 Sistema de clasificación iniciado.", GREEN)
-    log(f"📋 Prompt del agente: {llm.SYSTEM_PROMPT[:80]}...", DIM)
 
     while _running:
         _stats["cycles"] += 1
         cycle = _stats["cycles"]
 
-        # ── Step 1: Wait for fruit ────────────────────────────────────
         log(f"🔍 Ciclo {cycle}: Esperando fruta en el sensor...", DIM)
 
-        result = arduino.wait_for_fruit(
-            threshold_cm=threshold_cm,
-            timeout_seconds=sensor_timeout,
-        )
-
-        if not _running:
-            break
-
-        if result["detected"]:
-            dist = result.get("distance_cm", "?")
-            log(
-                f"📦 Ciclo {cycle}: ¡Fruta detectada a {dist:.1f}cm! "
-                f"Estabilizando ({STABILIZATION_DELAY}s)...",
-                CYAN,
-            )
-            time.sleep(STABILIZATION_DELAY)
-        else:
-            log(f"⏳ Ciclo {cycle}: No hay fruta — reintentando.", DIM)
+        result = arduino.wait_for_fruit(threshold_cm=threshold_cm, timeout_seconds=30)
+        
+        if not result["success"]:
+            log(f"⏳ Ciclo {cycle}: Tiempo agotado sin detección.", YELLOW)
             continue
 
-        # ── Step 2: Capture image ─────────────────────────────────────
+        log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {result['distance']}cm!", GREEN)
         log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
-        image_b64 = camera.get_camera_data()
-
-        if not _running:
-            break
-
-        if image_b64 is None:
-            log(f"⚠️  Ciclo {cycle}: Error de cámara.", YELLOW)
-            _stats["errors"] += 1
+        
+        img_b64 = camera.get_camera_data()
+        if not img_b64:
+            log("❌ Error al capturar imagen de la cámara.", RED)
             continue
 
-        # ── Step 3: Let the agent decide and act ──────────────────────
-        log(
-            f"🧠 Ciclo {cycle}: Enviando imagen al agente LLM "
-            f"(modelo: {llm.LMSTUDIO_MODEL})...",
-            CYAN,
-        )
-
-        agent_response = llm.act_on_fruit(
-            image_b64=image_b64,
-            on_message=_on_agent_message,
-        )
-
-        if not _running:
-            break
-
-        # ── Log the result ────────────────────────────────────────────
-        if "error" in agent_response.lower():
-            _stats["errors"] += 1
-            _stats["last_error"] = agent_response
-            log(f"⚠️  Ciclo {cycle}: {agent_response}", YELLOW)
-        elif "discard" in agent_response.lower():
-            _stats["discarded"] += 1
-            log(f"🚫 Ciclo {cycle}: Fruta descartada por el agente.", YELLOW)
-        else:
+        log(f"🧠 Ciclo {cycle}: Analizando con IA (Agente V4+)...", MAGENTA)
+        
+        agent_status = llm.act_on_fruit(img_b64, on_message=_on_agent_message)
+        
+        # Display aesthetic result
+        print_result_box(agent_status)
+        
+        if agent_status.startswith("SUCCESS"):
             _stats["sorted"] += 1
-            print()
-            print(f"{BOLD}{GREEN}{'▓' * 50}{RESET}")
-            print(f"{BOLD}{GREEN}  ✅  FRUTA CLASIFICADA — Ciclo {cycle}  ✅{RESET}")
-            print(f"{GREEN}  Respuesta: {agent_response[:80]}{RESET}")
-            print(f"{GREEN}  Total clasificadas: {_stats['sorted']}{RESET}")
-            print(f"{BOLD}{GREEN}{'▓' * 50}{RESET}")
-            print()
+        else:
+            _stats["discarded"] += 1
 
-    log("🔴 Sistema de clasificación detenido.", RED)
-
-
-# === SIGNAL HANDLER ===
-
-def _handle_sigint(sig, frame) -> None:
-    global _running
-    if not _running:
-        sys.exit(0)
-    _running = False
-    print(c(YELLOW, "\n\n⛔  Interrupción recibida. Deteniendo al terminar el ciclo..."))
-
-
-# === SUMMARY ===
-
-def _print_summary() -> None:
-    banner("RESUMEN FINAL", color=BLUE)
-    print(f"  Ciclos completados  : {c(WHITE, str(_stats['cycles']))}")
-    print(f"  Frutas clasificadas : {c(GREEN, str(_stats['sorted']))}")
-    print(f"  Frutas descartadas  : {c(YELLOW, str(_stats['discarded']))}")
-    print(f"  Errores             : {c(RED, str(_stats['errors']))}")
-
-    last_err = _stats.get("last_error")
-    if last_err:
-        print(f"\n  Último error : {c(YELLOW, str(last_err)[:80])}")
-    print()
+        time.sleep(1.0) # Small pause between cycles
 
 
 # === CONFIG DISPLAY ===
 
-def _print_config(args: argparse.Namespace) -> None:
-    banner("🍓 Fruit Sorter V4 — Agentic Runner (Requests)", color=GREEN)
-    port = arduino.SERIAL_PORT or "(auto-detect)"
-    print(f"  Puerto serial   : {c(CYAN, port)}")
-    print(f"  Baud rate       : {c(CYAN, str(arduino.SERIAL_BAUD))}")
-    print(f"  Comunicación    : {c(CYAN, 'HTTP (requests)')}")
-    print(f"  API Key         : {c(CYAN, llm.LMSTUDIO_API_KEY)}")
-    print(f"  Modelo          : {c(CYAN, llm.LMSTUDIO_MODEL)}")
-    print(f"  Cámara index    : {c(CYAN, str(camera.CAMERA_INDEX))}")
-    print(f"  Umbral sensor   : {c(CYAN, str(args.threshold))}cm")
-    print(f"  Timeout sensor  : {c(CYAN, str(args.sensor_timeout))}s")
-    print(f"\n  {c(DIM, 'Presiona Ctrl+C para detener limpiamente.')}\n")
+def _print_config() -> None:
+    banner("🍓 Fruit Sorter V4+ — Agentic Runner", color=GREEN)
+    print(f"  {BOLD}Puerto Serial{RESET} : {c(CYAN, arduino.SERIAL_PORT or 'AUTO')}")
+    print(f"  {BOLD}Comunicación {RESET} : {c(CYAN, 'HTTP (Direct Requests)')}")
+    print(f"  {BOLD}API Key      {RESET} : {c(YELLOW, llm.LMSTUDIO_API_KEY)}")
+    print(f"  {BOLD}Modelo       {RESET} : {c(CYAN, llm.LMSTUDIO_MODEL)}")
+    print(f"  {BOLD}Cámara Index {RESET} : {c(CYAN, str(camera.CAMERA_INDEX))}")
+    print(f"\n  {c(DIM, 'Presiona Ctrl+C para detener el sistema.')}\n")
 
 
-# === CLI ARGS ===
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="service.py",
-        description="Fruit Sorter V3 — Agentic sorting pipeline.",
-    )
-    parser.add_argument(
-        "--port", default=None,
-        help="Serial port (default: auto-detect)",
-    )
-    parser.add_argument(
-        "--baud", type=int, default=115200,
-        help="Baud rate (default: 115200)",
-    )
-    parser.add_argument(
-        "--camera", type=int, default=0,
-        help="Camera index (default: 0)",
-    )
-    parser.add_argument(
-        "--lm-model", default="qwen/qwen3-vl-4b", dest="lm_model",
-        help="LMStudio model name (default: qwen/qwen3-vl-4b)",
-    )
-    parser.add_argument(
-        "--threshold", type=float, default=13.0,
-        help="Detection threshold in cm (default: 13.0 — VL53L0X max range)",
-    )
-    parser.add_argument(
-        "--sensor-timeout", type=int, default=30, dest="sensor_timeout",
-        help="Sensor wait timeout in seconds (default: 30)",
-    )
-    return parser.parse_args()
-
-
-# === ENTRYPOINT ===
-
-def main() -> None:
+def signal_handler(sig, frame):
     global _running
-
-    args = parse_args()
-
-    # Apply CLI overrides to modules
-    if args.port:
-        arduino.SERIAL_PORT = args.port
-    arduino.SERIAL_BAUD = args.baud
-    camera.CAMERA_INDEX = args.camera
-    llm.LMSTUDIO_MODEL = args.lm_model
-
-    _print_config(args)
-
-    # Test LLM connection
-    log("🔗 Verificando conexión con LMStudio...", CYAN)
-    if not llm.test_connection():
-        log("❌ No se pudo conectar a LMStudio. ¿Está corriendo con el modelo cargado?", RED)
-        log("   Asegúrate de que LMStudio está corriendo con el modelo cargado.", RED)
-        sys.exit(1)
-    log("✅ LMStudio conectado.", GREEN)
-
-    signal.signal(signal.SIGINT, _handle_sigint)
-
-    _running = True
-
-    try:
-        sorting_loop(
-            sensor_timeout=args.sensor_timeout,
-            threshold_cm=args.threshold,
-        )
-    except Exception as exc:
-        print(c(RED, f"\n💥 Error inesperado: {exc}"))
-        raise
-    finally:
-        arduino.close()
-        camera.close()
-        _print_summary()
+    print(f"\n\n{YELLOW}🛑 Deteniendo sistema...{RESET}")
+    _running = False
+    camera.close()
+    arduino.close()
+    sys.exit(0)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=str, help="Serial port")
+    parser.add_argument("--camera", type=int, default=0, help="Camera index")
+    parser.add_argument("--threshold", type=float, default=13.0, help="Sensor threshold in cm")
+    args = parser.parse_args()
+
+    signal.signal(signal_interruption := signal.SIGINT, signal_handler)
+    _running = True
+
+    # Setup hardware
+    if args.port: arduino.SERIAL_PORT = args.port
+    camera.CAMERA_INDEX = args.camera
+    
+    _print_config()
+    
+    try:
+        if not llm.test_connection():
+            log("❌ Error: No se pudo conectar a LMStudio (¿Server iniciado?)", RED)
+            sys.exit(1)
+            
+        sorting_loop(threshold_cm=args.threshold)
+    except Exception as e:
+        log(f"💥 Error crítico: {e}", RED)
+    finally:
+        camera.close()
+        arduino.close()
