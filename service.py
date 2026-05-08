@@ -192,11 +192,11 @@ def _print_summary() -> None:
 # === CONFIG DISPLAY ===
 
 def _print_config(args: argparse.Namespace) -> None:
-    banner("🍓 Fruit Sorter V3 — Agentic Runner", color=GREEN)
+    banner("🍓 Fruit Sorter V4 — Agentic Runner (Requests)", color=GREEN)
     port = arduino.SERIAL_PORT or "(auto-detect)"
     print(f"  Puerto serial   : {c(CYAN, port)}")
     print(f"  Baud rate       : {c(CYAN, str(arduino.SERIAL_BAUD))}")
-    print(f"  LMStudio SDK    : {c(CYAN, 'lmstudio (WebSocket, auto-connect)')}")
+    print(f"  Comunicación    : {c(CYAN, 'HTTP (requests)')}")
     print(f"  API Key         : {c(CYAN, llm.LMSTUDIO_API_KEY)}")
     print(f"  Modelo          : {c(CYAN, llm.LMSTUDIO_MODEL)}")
     print(f"  Cámara index    : {c(CYAN, str(camera.CAMERA_INDEX))}")

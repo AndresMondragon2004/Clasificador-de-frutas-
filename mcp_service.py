@@ -14,17 +14,19 @@ Usage:
 
 import arduino
 import camera
+import tools as _tools
 from fastmcp import FastMCP
 
 app = FastMCP(
     name="Fruit Classifier Machine Control",
     instructions="""
     Tools for controlling a fruit sorting machine with Arduino and camera.
+    Sensor: VL53L0X laser (I2C). Detection range: 3–13 cm.
     Available tools:
 
     - ping_machine: Test Arduino connection
-    - get_distance: Read ultrasonic sensor distance
-    - wait_for_fruit: Block until a fruit is detected
+    - get_distance: Read VL53L0X laser sensor distance in cm
+    - wait_for_fruit: Block until a fruit is detected within threshold (default 13 cm)
     - capture_photo: Capture a photo from the camera
     - sort_to_left: Sort fruit to the left bin
     - sort_to_right: Sort fruit to the right bin
@@ -45,12 +47,12 @@ def get_distance() -> dict:
 
 
 @app.tool()
-def wait_for_fruit(threshold_cm: float = 20.0, timeout_seconds: int = 30) -> dict:
+def wait_for_fruit(threshold_cm: float = 13.0, timeout_seconds: int = 30) -> dict:
     """
     Block until a fruit is detected within the given threshold.
 
     Args:
-        threshold_cm: Detection distance threshold (default: 20.0 cm)
+        threshold_cm: Detection distance threshold in cm (default: 13.0 — VL53L0X max range)
         timeout_seconds: Maximum seconds to wait (default: 30)
     """
     return arduino.wait_for_fruit(
@@ -69,15 +71,15 @@ def capture_photo() -> dict:
 
 
 @app.tool()
-def sort_to_left() -> dict:
+def sort_to_left() -> str:
     """Sort the current fruit to the LEFT bin (activates left servo)."""
-    return arduino.classify_as_apple()
+    return _tools.sort_to_left()
 
 
 @app.tool()
-def sort_to_right() -> dict:
+def sort_to_right() -> str:
     """Sort the current fruit to the RIGHT bin (activates right servo)."""
-    return arduino.classify_as_orange()
+    return _tools.sort_to_right()
 
 
 if __name__ == "__main__":

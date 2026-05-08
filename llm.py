@@ -1,23 +1,26 @@
 """
-llm.py — Agentic vision + tool-calling via LMStudio SDK.
+llm.py — Agentic vision + tool-calling via direct HTTP requests (V4).
 
-Uses model.act() to give the LLM full autonomy: it sees the camera
-image, decides which fruit it is, and calls the appropriate sorting
-tool — all in one call.  No hardcoded fruit conditionals.
+This version eliminates the LMStudio SDK in favor of 'requests'.
+It implements a manual agent loop to handle tool_calls from the model
+following the OpenAI API standard.
 
-Adding a new fruit only requires editing SYSTEM_PROMPT.
+The LLM sees the image, decides which tool to call, and Python 
+executes it and feeds the result back to the model if necessary.
 """
 
+import json
 import base64
-
-import lmstudio as lms
+import requests
+import tools
 
 # === CONFIGURATION ===
+# Default LMStudio local server URL
+API_URL = "http://127.0.0.1:1234/v1/chat/completions"
 LMSTUDIO_MODEL = "qwen/qwen3-vl-4b"
-LMSTUDIO_API_KEY = "lm-studio"  # Included for documentation/academic purposes
+LMSTUDIO_API_KEY = "lm-studio"  # Required for V4 as per instructions
 
-# System prompt — edit this to add/remove fruit types or change sorting rules.
-# The LLM uses this to decide which tool to call.
+# System prompt — The "brain" of the agent.
 SYSTEM_PROMPT = (
     "You are an autonomous fruit sorting machine controller. "
     "You receive images from a camera mounted above a sorting ramp. "
@@ -36,66 +39,111 @@ SYSTEM_PROMPT = (
 )
 
 
-# === INTERNAL STATE ===
-_model = None
-
-
-def _get_model():
-    """Return the LMStudio model handle, creating it on first call."""
-    global _model
-    if _model is not None:
-        return _model
-    _model = lms.llm(LMSTUDIO_MODEL)
-    return _model
-
-
 def test_connection() -> bool:
-    """Test that LMStudio is reachable and the model is loaded."""
+    """Test that the LMStudio server is reachable and accepting requests."""
     try:
-        model = _get_model()
-        model.respond("Say OK", config={"maxTokens": 5})
-        return True
+        headers = {"Authorization": f"Bearer {LMSTUDIO_API_KEY}"}
+        payload = {
+            "model": LMSTUDIO_MODEL,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 5
+        }
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=5)
+        return response.status_code == 200
     except Exception as e:
-        print(f"  [DEBUG] Error de conexión SDK: {type(e).__name__}: {e}")
+        print(f"  [DEBUG] Error de conexión HTTP: {e}")
         return False
 
 
 def act_on_fruit(image_b64: str, on_message=None) -> str:
     """
-    Give the LLM an image and let it autonomously decide what to do.
-
-    The model sees the image, identifies the fruit, and uses the
-    globally available MCP tools in LMStudio via .act().
-
-    Args:
-        image_b64: Base64-encoded JPEG image from the camera.
-        on_message: Optional callback for logging agent messages.
-
-    Returns:
-        The final text response from the agent (usually a confirmation).
+    Agent loop: Sends image to LLM, executes tools, and repeats if needed.
     """
-    try:
-        model = _get_model()
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LMSTUDIO_API_KEY}"
+    }
 
-        # Prepare the image for the SDK
-        image_bytes = base64.b64decode(image_b64)
-        image_handle = lms.prepare_image(image_bytes)
+    # Initial history with system prompt and user image
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text", 
+                    "text": "A fruit has been detected. Look at this image and sort it."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_b64}"
+                    }
+                }
+            ]
+        }
+    ]
 
-        # Build the chat context with system prompt + image
-        chat = lms.Chat(SYSTEM_PROMPT)
-        chat.add_user_message(
-            "A fruit has been detected on the sorting ramp. "
-            "Look at this image and sort it using the correct tool.",
-            images=[image_handle],
-        )
+    max_turns = 5  # Prevent infinite loops
+    
+    for turn in range(max_turns):
+        try:
+            payload = {
+                "model": LMSTUDIO_MODEL,
+                "messages": messages,
+                "tools": tools.TOOLS_SCHEMA,
+                "tool_choice": "auto"
+            }
 
-        # Let the LLM act autonomously — it will call MCP tools as needed
-        result = model.act(
-            chat,
-            on_message=on_message,
-        )
+            response = requests.post(API_URL, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            res_json = response.json()
+            assistant_message = res_json["choices"][0]["message"]
+            
+            # 1. Add assistant's thought/call to history
+            messages.append(assistant_message)
+            
+            # Log assistant message if callback provided
+            if on_message and assistant_message.get("content"):
+                on_message(type('obj', (object,), {"role": "assistant", "content": assistant_message["content"]}))
 
-        return str(result).strip() if result else "Agent completed (no text response)."
+            # 2. Check for tool calls
+            tool_calls = assistant_message.get("tool_calls")
+            
+            if not tool_calls:
+                # If no tool calls, the model just spoke. Return the text.
+                return assistant_message.get("content", "Agent finished without tools.")
 
-    except Exception as e:
-        return f"Agent error: {type(e).__name__}: {e}"
+            # 3. Execute tool calls
+            for tool_call in tool_calls:
+                func_name = tool_call["function"]["name"]
+                call_id = tool_call["id"]
+                
+                if on_message:
+                    on_message(type('obj', (object,), {"role": "tool", "content": func_name}))
+                
+                # Run the actual Python function
+                if func_name in tools.AVAILABLE_FUNCTIONS:
+                    result = tools.AVAILABLE_FUNCTIONS[func_name]()
+                else:
+                    result = f"Error: Tool {func_name} not found."
+
+                # Add tool result to history
+                messages.append({
+                    "role": "tool",
+                    "content": result,
+                    "tool_call_id": call_id
+                })
+                
+                # If it's a sorting tool (terminal action), we can stop here
+                if func_name in ["sort_to_left", "sort_to_right", "discard_fruit"]:
+                    return result
+
+            # If we reached here, a non-terminal tool was called (e.g., get_camera_image)
+            # The loop continues and sends the updated history back to the model.
+            
+        except Exception as e:
+            return f"Agent error (turn {turn}): {type(e).__name__}: {e}"
+
+    return "Agent reached maximum turns without a terminal action."

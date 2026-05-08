@@ -1,34 +1,32 @@
 <div align="center">
 
-# Clasificador Automático de Frutas con IA — V3 (Agéntico)
+# Clasificador Automático de Frutas con IA — V4 (Agéntico)
 
-**Sistema autónomo con agente de IA local: el LLM ve, decide y actúa — sin condicionales hardcodeadas**
+**Sistema autónomo con agente de IA local: el LLM ve, decide y actúa mediante peticiones HTTP directas**
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Arduino](https://img.shields.io/badge/Arduino_Uno-R3-00979D?style=flat-square&logo=arduino&logoColor=white)
-![OpenCV](https://img.shields.io/badge/OpenCV-4.x-5C3EE8?style=flat-square&logo=opencv&logoColor=white)
-![LMStudio](https://img.shields.io/badge/LMStudio-SDK_Agent-FF6B6B?style=flat-square)
-![FastMCP](https://img.shields.io/badge/FastMCP-MCP_Server-orange?style=flat-square)
+![LMStudio](https://img.shields.io/badge/LMStudio-OpenAI_API-FF6B6B?style=flat-square)
+![Requests](https://img.shields.io/badge/Requests-HTTP-blue?style=flat-square)
 
 </div>
 
 ---
 
-## ¿Qué cambió respecto a V2?
+## ¿Qué cambió en V4?
 
-La **V2** usaba Python como orquestador determinista: el LLM solo clasificaba imágenes y Python decidía con `if apple → servo_izq`. Funcionaba, pero **no era escalable**.
+La **V4** elimina la dependencia del SDK de LMStudio para usar la librería estándar `requests`. Esto permite un control total sobre las peticiones HTTP y el uso explícito de **API KEYS**.
 
-| Aspecto | V2 | V3 (este repo) |
+| Aspecto | V3 | V4 (este repo) |
 |:---|:---|:---|
-| Rol del LLM | Solo clasificador de imágenes (devolvía "apple"/"orange") | **Agente autónomo**: ve la imagen Y llama tools |
-| Decisión de sorting | Condicionales en Python (`if label == "apple"`) | **El LLM decide** — llama `sort_to_left()` / `sort_to_right()` |
-| Agregar nueva fruta | Modificar código en service.py, llm.py, y Arduino | **Solo editar el system prompt** |
-| SDK | HTTP requests manuales | **LMStudio SDK** con `.act()` (tool-calling nativo) |
-| Escalabilidad | ❌ Condicionales hardcodeadas | ✅ Prompt-driven — sin límite de frutas |
+| Comunicación | LMStudio SDK (WebSocket) | **Requests (HTTP/JSON)** |
+| API Key | No requerida explícitamente | **Soportada y obligatoria** |
+| Tool Calling | Manejado por el SDK | **Manejado manualmente (loop agéntico)** |
+| Flexibilidad | Alta | **Máxima (estándar OpenAI)** |
 
-### ¿Por qué V3?
+### ¿Por qué V4?
 
-Si mañana necesitas clasificar **limones, plátanos o mangos**, en V2 tendrías que modificar condicionales en 3 archivos. En V3, solo editas una línea del system prompt: `"Lemons → sort to LEFT"`. El código no cambia.
+Usar `requests` garantiza que el proyecto sea compatible con cualquier servidor que siga el estándar de OpenAI, además de cumplir con los requisitos académicos de usar una API KEY para autenticar las llamadas a herramientas.
 
 ---
 

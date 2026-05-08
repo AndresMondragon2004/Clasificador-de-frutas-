@@ -1,17 +1,16 @@
 """
-tools.py — Sorting tools exposed to the LLM agent.
+tools.py — Sorting tools exposed to the LLM agent (V4 - Requests Version).
 
-These are the tools the model can call via .act() to physically sort
-fruits. Tools are named by physical direction (left/right), NOT by
-fruit name — the LLM decides which tool to call based on its system
-prompt.  Adding a new fruit only requires editing the prompt.
+These are the tools the model can call via the OpenAI-compatible API 
+to physically sort fruits. Adding a new fruit only requires editing 
+the prompt in llm.py.
 """
 
 import arduino
 import camera
-import lmstudio as lms
 import base64
 
+# === TOOL IMPLEMENTATIONS ===
 
 def sort_to_left() -> str:
     """Sort the detected fruit to the LEFT bin by activating the left servo."""
@@ -46,5 +45,63 @@ def get_camera_image() -> str:
     return f"Here is the new photo (base64 JPEG): {image_b64}"
 
 
-# List of all tools available to the agent
-ALL_TOOLS = [sort_to_left, sort_to_right, discard_fruit, get_camera_image]
+# === API SCHEMAS (OpenAI Format) ===
+
+TOOLS_SCHEMA = [
+    {
+        "type": "function",
+        "function": {
+            "name": "sort_to_left",
+            "description": "Sort the detected fruit to the LEFT bin (e.g., for apples).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sort_to_right",
+            "description": "Sort the detected fruit to the RIGHT bin (e.g., for oranges).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "discard_fruit",
+            "description": "Discard the fruit. Use when the fruit is unknown, unclear, or no fruit is visible.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_camera_image",
+            "description": "Take a new photo from the camera for a better look at the fruit.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
+]
+
+# Dictionary to dispatch function calls by name
+AVAILABLE_FUNCTIONS = {
+    "sort_to_left": sort_to_left,
+    "sort_to_right": sort_to_right,
+    "discard_fruit": discard_fruit,
+    "get_camera_image": get_camera_image
+}
