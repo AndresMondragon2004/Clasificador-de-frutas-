@@ -2,272 +2,572 @@
 
 # Clasificador Automático de Frutas con IA — V4 (Agéntico)
 
-**Sistema autónomo con agente de IA local: el LLM ve, decide y actúa mediante peticiones HTTP directas**
+**Sistema autónomo con agente de IA local: el LLM ve, decide y actúa mediante peticiones HTTP directas al servidor OpenAI-compatible de LMStudio.**
 
 ![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Arduino](https://img.shields.io/badge/Arduino_Uno-R3-00979D?style=flat-square&logo=arduino&logoColor=white)
 ![LMStudio](https://img.shields.io/badge/LMStudio-OpenAI_API-FF6B6B?style=flat-square)
 ![Requests](https://img.shields.io/badge/Requests-HTTP-blue?style=flat-square)
+![VL53L0X](https://img.shields.io/badge/Sensor-VL53L0X_Láser-8A2BE2?style=flat-square)
 
 </div>
+
+---
+
+## Descripción General
+
+Sistema de clasificación de frutas completamente automatizado con **agente de IA local**. Una fruta se coloca en una rampa; un **sensor láser VL53L0X** detecta su presencia, una **webcam** captura la imagen y un **agente LLM** (Qwen3-VL ejecutado localmente en LMStudio) identifica la fruta y llama la herramienta correcta para mover los servomotores del Arduino — sin decisiones hardcodeadas en Python.
+
+### Características Principales
+
+- **Agente Autónomo** — El LLM ve la imagen, decide y actúa llamando tools vía HTTP.
+- **Sensor Láser de Precisión** — VL53L0X (I2C) con rango de detección configurado a 3–13 cm.
+- **Comunicación HTTP Estándar** — Usa la librería `requests` con el estándar OpenAI. Compatible con cualquier servidor LLM compatible (LMStudio, Ollama, vLLM, etc.).
+- **API Key Soportada** — Autenticación Bearer token explícita en cada petición.
+- **Tool-Calling Nativo** — Loop agéntico manual: el LLM devuelve la tool a ejecutar, Python la ejecuta y devuelve el resultado, hasta que la fruta queda clasificada.
+- **Escalable por Prompt** — Agregar nuevas frutas solo requiere editar el system prompt.
+- **Inferencia 100% Local** — Sin dependencias de la nube.
+- **Arquitectura Modular** — Cámara, Arduino, LLM y Tools en módulos independientes.
+- **MCP Opcional** — Servidor MCP incluido para integración con clientes externos.
 
 ---
 
 ## ¿Qué cambió en V4?
 
-La **V4** elimina la dependencia del SDK de LMStudio para usar la librería estándar `requests`. Esto permite un control total sobre las peticiones HTTP y el uso explícito de **API KEYS**.
+La **V4** reemplaza el SDK propietario de LMStudio por la librería estándar `requests`, y migra el sensor HC-SR04 (ultrasónico) al **VL53L0X** (láser I2C) para mayor precisión y simplicidad en el firmware.
 
 | Aspecto | V3 | V4 (este repo) |
 |:---|:---|:---|
-| Comunicación | LMStudio SDK (WebSocket) | **Requests (HTTP/JSON)** |
-| API Key | No requerida explícitamente | **Soportada y obligatoria** |
-| Tool Calling | Manejado por el SDK | **Manejado manualmente (loop agéntico)** |
-| Flexibilidad | Alta | **Máxima (estándar OpenAI)** |
-
-### ¿Por qué V4?
-
-Usar `requests` garantiza que el proyecto sea compatible con cualquier servidor que siga el estándar de OpenAI, además de cumplir con los requisitos académicos de usar una API KEY para autenticar las llamadas a herramientas.
-
----
-
-## Descripción del Proyecto
-
-Sistema de clasificación de frutas automatizado con **agente de IA local**. El LLM recibe la imagen de la cámara y usa **tool-calling** para accionar los servos del Arduino directamente — no hay decisiones hardcodeadas en Python.
-
-Una fruta se coloca en una rampa; un **sensor ultrasónico** detecta su presencia, una **webcam** captura la imagen y un **agente LLM** (Qwen3-VL ejecutado localmente en LMStudio) identifica la fruta y **llama la tool correcta** para mover los servos.
-
-### Características Principales
-
-- **Agente Autónomo** — El LLM ve, decide y actúa usando `.act()` del SDK de LMStudio.
-- **Escalable por Prompt** — Agregar nuevas frutas solo requiere editar el system prompt.
-- **Inferencia 100% Local** — Sin dependencias de la nube. Todo corre en LMStudio.
-- **Arquitectura Modular** — Cámara, Arduino, LLM y Tools en módulos independientes.
-- **Hardware Accesible** — Componentes económicos y fáciles de conseguir.
-- **MCP Opcional** — Servidor MCP incluido para integración con clientes externos.
+| Sensor de detección | HC-SR04 (ultrasónico, pines 6 y 7) | **VL53L0X (láser I2C, A4/A5)** |
+| Comunicación LLM | LMStudio SDK (WebSocket) | **`requests` (HTTP/JSON)** |
+| API Key | No requerida | **Bearer token explícito** |
+| Tool Calling | Manejado por el SDK | **Loop agéntico manual** |
+| Firmware Arduino | Lógica de empuje de doble servo | **Movimiento simple por servo** |
+| Compatibilidad | Solo LMStudio SDK | **Cualquier API OpenAI-compatible** |
 
 ---
 
 ## Hardware
 
-### Componentes utilizados
+### Componentes
 
 | Componente | Modelo | Función |
 |:---|:---|:---|
-| Microcontrolador | **Arduino UNO R3** | Controla los servos y lee el sensor ultrasónico |
-| Cámara | **Webcam USB** | Captura imágenes de las frutas para el agente de IA |
-| Sensor de distancia | **HC-SR04** | Detecta la presencia de una fruta en la posición de escaneo |
-| Servomotores (x2) | **MG995** | Accionan las compuertas para desviar las frutas |
-| Estructura | **Triplay** *(en desarrollo)* | Rampa con dos compuertas laterales y contenedores |
+| Microcontrolador | **Arduino UNO R3** | Controla los servos y lee el sensor láser |
+| Cámara | **Webcam USB** | Captura imágenes de las frutas para el agente |
+| Sensor de distancia | **VL53L0X** (Adafruit) | Detecta presencia de fruta por tiempo de vuelo (ToF) láser |
+| Servomotores (×2) | **MG995** | Accionan las compuertas para desviar las frutas |
+| Estructura | **Triplay** | Rampa con dos compuertas laterales y contenedores |
+
+### Sensor Láser VL53L0X
+
+El **VL53L0X** es un sensor de distancia de **tiempo de vuelo (ToF)** que usa un láser infrarrojo de 940 nm. A diferencia del HC-SR04 (ultrasónico), no requiere pines de Trig/Echo — se comunica por **I2C** con un solo par de cables (SDA/SCL), es más preciso y no tiene problemas de interferencia por ángulo o material de superficie.
+
+| Parámetro | Valor |
+|:---|:---|
+| Protocolo | I2C (dirección `0x29`) |
+| Rango físico | 30 mm – 2000 mm |
+| Rango configurado en firmware | **30 mm – 130 mm (3–13 cm)** |
+| Modo de precisión | `VL53L0X_SENSE_HIGH_ACCURACY` |
+| Valor cuando no hay objeto | `999.0` (fuera de rango o error de medición) |
+| Librería Arduino | `Adafruit_VL53L0X` |
 
 ### Diagrama del Circuito
 
 <div align="center">
 
-<img src="../assets/circuit_diagram.png" alt="Diagrama del circuito en Tinkercad" width="700"/>
+<img src="assets/circuit_diagram.png" alt="Diagrama del circuito" width="700"/>
 
 </div>
 
-#### Conexiones de pines
+### Conexiones de Pines
 
 | Pin Arduino | Componente | Función |
 |:---:|:---|:---|
-| `6` | HC-SR04 → Trig | Disparo del pulso ultrasónico |
-| `7` | HC-SR04 → Echo | Recepción del eco |
-| `9` | Servo MG995 #1 | Compuerta **IZQUIERDA** |
-| `10` | Servo MG995 #2 | Compuerta **DERECHA** |
-| `5V` | HC-SR04 VCC / Servos VCC | Alimentación |
-| `GND` | HC-SR04 GND / Servos GND | Tierra común |
+| `A4 (SDA)` | VL53L0X → SDA | Datos I2C (dirección `0x29`) |
+| `A5 (SCL)` | VL53L0X → SCL | Reloj I2C |
+| `3.3V` | VL53L0X → VCC | Alimentación del sensor |
+| `9` | Servo MG995 #1 | Compuerta **IZQUIERDA** (manzanas) |
+| `10` | Servo MG995 #2 | Compuerta **DERECHA** (naranjas) |
+| `5V` | Servos VCC | Alimentación de los servomotores |
+| `GND` | VL53L0X GND / Servos GND | Tierra común |
+
+> **Nota:** El breakout de Adafruit tiene regulador de voltaje incorporado, por lo que también acepta 5V en VCC.
 
 ---
 
 ## Arquitectura del Sistema
 
-En V3, el **LLM es el agente**. Python solo detecta la fruta y le pasa la imagen — el modelo decide qué tool llamar.
+### Diagrama General
 
 ```mermaid
-graph LR
-    A["service.py<br/>Detecta fruta + captura foto"]
-    B["llm.py<br/>→ model.act()<br/>LMStudio SDK"]
-    C["tools.py<br/>sort_to_left()<br/>sort_to_right()"]
-    D["arduino.py<br/>→ Arduino UNO R3<br/>Servos"]
-    E["camera.py<br/>→ Webcam USB"]
+graph TD
+    A["service.py\nOrquestador principal\nLoop de detección y clasificación"]
+    B["arduino.py\nComunicación serial\n115200 baud"]
+    C["camera.py\nWebcam USB\nCaptura de imagen"]
+    D["llm.py\nAgente de IA\nHTTP → LMStudio"]
+    E["tools.py\nHerramientas del LLM\nsort_to_left / sort_to_right"]
+    F["mcp_service.py\n(Opcional) Servidor MCP\nSSE port 8000"]
 
-    A -->|"act_on_fruit(imagen, tools)"| B
-    B -->|"LLM llama tool"| C
-    C -->|"Comando serial"| D
-    A -->|"capture_frame()"| E
+    subgraph Hardware
+        HW1["Arduino UNO R3"]
+        HW2["Sensor VL53L0X\n(láser I2C)"]
+        HW3["Servos MG995\n(compuertas)"]
+    end
+
+    subgraph LMStudio Local
+        LM["Qwen3-VL-4B\nOpenAI API :1234"]
+    end
+
+    A -->|"GET_DISTANCE\ndetección de fruta"| B
+    A -->|"capture_frame()"| C
+    A -->|"act_on_fruit(imagen)"| D
+    D -->|"POST /v1/chat/completions\n+ tools schema"| LM
+    LM -->|"tool_calls JSON"| D
+    D -->|"ejecuta tool"| E
+    E -->|"APPLE / ORANGE"| B
+    B -->|"Serial 115200"| HW1
+    HW1 -->|"I2C"| HW2
+    HW1 -->|"PWM"| HW3
+    F -.->|"expone tools via SSE\n(uso opcional)"| B
+    F -.-> C
 ```
 
-### Flujo de un ciclo completo
+### Flujo de un Ciclo Completo
 
 ```mermaid
 flowchart TD
-    A["Inicio del ciclo"] --> B["Polling: GET_DISTANCE"]
-    B --> C{"¿Distancia < 20 cm?"}
-    C -- "No" --> B
-    C -- "Sí" --> D["Capturar foto con webcam"]
-    D --> E["model.act(foto, tools)"]
-    E --> F["LLM ve la imagen"]
-    F --> G{"LLM decide"}
-    G -->|"sort_to_left()"| H["Servo izquierdo actúa"]
-    G -->|"sort_to_right()"| I["Servo derecho actúa"]
-    G -->|"discard_fruit()"| J["Fruta descartada"]
-    G -->|"get_camera_image()"| K["Toma otra foto"]
-    K --> F
-    H --> L["Ciclo completado ✅"]
-    I --> L
-    J --> L
-    L --> B
+    Start(["▶ Inicio del ciclo"]) --> Poll["arduino.wait_for_fruit()\nEnvía GET_DISTANCE cada 0.3s"]
+    Poll --> Detect{"¿VL53L0X detecta objeto\n< 13 cm?"}
+    Detect -- "No (999.0)" --> Timeout{"¿Timeout 30s?"}
+    Timeout -- "No" --> Poll
+    Timeout -- "Sí" --> SkipLog["Log: tiempo agotado"] --> Start
+
+    Detect -- "Sí" --> Capture["camera.get_camera_data()\nCaptura frame → JPEG → Base64"]
+    Capture --> Send["llm.act_on_fruit(imagen)\nPOST /v1/chat/completions\n+ TOOLS_SCHEMA"]
+
+    Send --> LLM["LMStudio procesa imagen\ncon Qwen3-VL-4B"]
+    LLM --> Response{"¿Qué devuelve el LLM?"}
+
+    Response -- "tool_calls:\nsort_to_left" --> Left["tools.sort_to_left(fruit_name)\n→ arduino.classify_as_apple()\n→ APPLE\\n por serial"]
+    Response -- "tool_calls:\nsort_to_right" --> Right["tools.sort_to_right(fruit_name)\n→ arduino.classify_as_orange()\n→ ORANGE\\n por serial"]
+    Response -- "tool_calls:\ndiscard_fruit" --> Discard["Fruta descartada\nSin acción en hardware"]
+    Response -- "tool_calls:\nget_camera_image" --> Retry["Nueva foto\nReemplaza imagen en contexto\n→ vuelve a consultar LLM"]
+    Retry --> LLM
+
+    Left --> OK1["Arduino: servo izquierdo 135°\n→ espera 2.5s → vuelve a 90°\nResponde OK"]
+    Right --> OK2["Arduino: servo derecho 45°\n→ espera 2.5s → vuelve a 90°\nResponde OK"]
+
+    OK1 --> Result["SUCCESS:NombreFruta:LEFT"]
+    OK2 --> Result2["SUCCESS:NombreFruta:RIGHT"]
+    Discard --> Result3["DISCARD:Unknown Item"]
+
+    Result --> Box["service.py imprime\ncuadro estético de resultado"]
+    Result2 --> Box
+    Result3 --> Box
+    Box --> Start
 ```
-
-### Comunicación entre componentes
-
-#### 1. `arduino.py` ↔ Arduino (Serial, 115200 baud)
-
-Conexión persistente con auto-reconexión. Comandos en texto plano:
-
-| Comando enviado | Respuesta esperada | Acción |
-|:---|:---|:---|
-| `PING\n` | `PONG` | Verifica que el Arduino está conectado |
-| `GET_DISTANCE\n` | `12.34` (distancia en cm) | Lee el sensor ultrasónico |
-| `APPLE\n` | `OK` | Activa servo izquierdo (compuerta a 135°) + empuje |
-| `ORANGE\n` | `OK` | Activa servo derecho (compuerta a 45°) + empuje |
-
-#### 2. `llm.py` ↔ LMStudio (SDK nativo, WebSocket)
-
-Usa `model.act()` del SDK oficial de LMStudio. El agente recibe la imagen via `lms.prepare_image()` y usa las herramientas provistas mediante MCP globalmente en LMStudio. El LLM ve la imagen, decide qué fruta es, y **llama la tool correcta nativamente**.
 
 ---
 
-## Software — Estructura Modular
+## Módulos de Software
 
-### Módulos
+### `service.py` — Punto de Entrada y Orquestador
 
-| Archivo | Responsabilidad |
+**Es el único archivo que se ejecuta directamente.** Contiene el loop principal que coordina todos los módulos:
+
+1. Verifica conexión con LMStudio (`llm.test_connection()`).
+2. Llama `arduino.wait_for_fruit()` en polling hasta detectar una fruta.
+3. Captura la imagen con `camera.get_camera_data()`.
+4. Pasa imagen al agente `llm.act_on_fruit()`.
+5. Imprime el resultado con cuadro estético ANSI.
+6. Repite.
+
+También maneja señales SIGINT (Ctrl+C) para cerrar limpiamente la cámara y el puerto serial.
+
+**Funciones clave:**
+
+| Función | Descripción |
 |:---|:---|
-| `service.py` | **Punto de entrada** — loop de detección + invocación del agente |
-| `tools.py` | **Tools del agente** — funciones que el LLM puede llamar (`sort_to_left`, etc.) |
-| `llm.py` | **Agente de IA** — `model.act()` con visión + tool-calling |
-| `arduino.py` | Comunicación serial con Arduino (persistente, thread-safe) |
-| `camera.py` | Captura de imágenes con webcam (persistente, con warmup) |
-| `mcp_service.py` | *(Opcional)* Servidor MCP para clientes externos |
+| `sorting_loop(threshold_cm)` | Loop principal de clasificación |
+| `_on_agent_message(role, content)` | Callback que recibe mensajes del agente en tiempo real |
+| `print_result_box(status)` | Imprime el resultado en cuadro ANSI coloreado |
+| `signal_handler(sig, frame)` | Cierra hardware limpiamente al interrumpir |
 
-### System Prompt del Agente
+**Ejecución:**
+```bash
+python service.py [--port /dev/ttyUSB0] [--camera 0] [--threshold 13.0]
+```
+
+| Argumento | Default | Descripción |
+|:---|:---|:---|
+| `--port` | Auto-detect | Puerto serial del Arduino (ej. `/dev/ttyUSB0`, `COM5`) |
+| `--camera` | `0` | Índice de cámara USB |
+| `--threshold` | `13.0` | Distancia máxima de detección en cm |
+
+---
+
+### `llm.py` — Agente de IA (Loop Agéntico)
+
+Contiene toda la lógica de comunicación con LMStudio y el loop de tool-calling. **No tiene estado**: recibe imagen en Base64, ejecuta el loop y devuelve el resultado final.
+
+**Constantes de configuración:**
 
 ```python
-"You are an autonomous fruit sorting machine controller. "
-"You receive images from a camera mounted above a sorting ramp. "
-"Your job is to identify the fruit and call the correct sorting tool.\n\n"
-"CURRENT SORTING RULES:\n"
-"- Apples (any color: red, green, yellow) → sort to LEFT  (call sort_to_left)\n"
-"- Oranges (round citrus fruit)           → sort to RIGHT (call sort_to_right)\n"
-"- Unknown / unclear / no fruit visible    → discard       (call discard_fruit)\n\n"
+API_URL         = "http://127.0.0.1:1234/v1/chat/completions"
+LMSTUDIO_MODEL  = "qwen/qwen3-vl-4b"
+LMSTUDIO_API_KEY = "lm-studio"
 ```
 
-**¿Cómo agregar una nueva fruta?**
+**Funciones clave:**
 
-Solo edita el prompt en `llm.py`:
+| Función | Descripción |
+|:---|:---|
+| `test_connection()` | Verifica que LMStudio responde antes de iniciar el loop |
+| `act_on_fruit(image_b64, on_message)` | Ejecuta el loop agéntico completo. Devuelve `SUCCESS:...` o `DISCARD:...` |
+
+**System Prompt del Agente:**
+
+```
+You are an autonomous fruit sorting machine controller.
+Identify the fruit and call the correct tool with the fruit's name.
+
+RULES:
+- Apples (any color) -> sort_to_left(fruit_name='Specific Apple Type')
+- Oranges (any)      -> sort_to_right(fruit_name='Specific Orange Type')
+- Unknown/None       -> discard_fruit()
+
+INSTRUCTIONS:
+1. Identify the specific variety if possible (e.g. 'Red Gala Apple').
+2. Call the tool with the fruit_name argument.
+3. No reasoning, just the tool call.
+```
+
+**¿Cómo agregar una nueva fruta?** Solo edita el system prompt en `llm.py`:
+
 ```diff
- "CURRENT SORTING RULES:\n"
- "- Apples (any color: red, green, yellow) → sort to LEFT  (call sort_to_left)\n"
- "- Oranges (round citrus fruit)           → sort to RIGHT (call sort_to_right)\n"
-+"- Lemons (yellow citrus fruit)           → sort to LEFT  (call sort_to_left)\n"
- "- Unknown / unclear / no fruit visible    → discard       (call discard_fruit)\n\n"
+ RULES:
+ - Apples (any color) -> sort_to_left(fruit_name='Specific Apple Type')
+ - Oranges (any)      -> sort_to_right(fruit_name='Specific Orange Type')
++"- Lemons (yellow)   -> sort_to_left(fruit_name='Specific Lemon Type')
+ - Unknown/None       -> discard_fruit()
 ```
 
-No se necesita modificar ningún otro archivo. ✅
+No se modifica ningún otro archivo.
+
+---
+
+### `tools.py` — Herramientas del Agente
+
+Define las funciones que el LLM puede invocar. Cada tool tiene **dos partes**:
+
+1. **Implementación Python** — La función real que ejecuta la acción.
+2. **Schema JSON (OpenAI format)** — La descripción que se envía al LLM para que sepa cuándo y cómo llamar cada herramienta.
+
+**Tools disponibles:**
+
+| Tool | Parámetro | Acción | Devuelve |
+|:---|:---|:---|:---|
+| `sort_to_left(fruit_name)` | Nombre de la fruta | Envía `APPLE\n` al Arduino → servo izquierdo | `SUCCESS:NombreFruta:LEFT` |
+| `sort_to_right(fruit_name)` | Nombre de la fruta | Envía `ORANGE\n` al Arduino → servo derecho | `SUCCESS:NombreFruta:RIGHT` |
+| `discard_fruit()` | — | No actúa en hardware | `DISCARD:Unknown Item` |
+| `get_camera_image()` | — | Captura nueva foto (si la primera fue poco clara) | `NEW_IMAGE_READY` |
+
+El diccionario `AVAILABLE_FUNCTIONS` mapea nombre → función Python para el dispatch dinámico en `llm.py`.
+
+---
+
+### `arduino.py` — Comunicación Serial con Arduino
+
+Gestiona la conexión serial con el Arduino. La conexión es **persistente** (se abre una sola vez y se reutiliza), **thread-safe** (con `threading.Lock`) y **auto-reconectable** (si el puerto se cierra, el siguiente comando lo reabre).
+
+**Funciones clave:**
+
+| Función | Descripción |
+|:---|:---|
+| `send_command(command, timeout)` | Envía un comando por serial y espera la respuesta. Base de todas las demás funciones. |
+| `ping()` | Envía `PING\n` y verifica que el Arduino responda `PONG` |
+| `get_distance()` | Envía `GET_DISTANCE\n` y devuelve la distancia en cm como `float` |
+| `wait_for_fruit(threshold_cm, timeout_seconds)` | Hace polling del sensor cada 0.3s hasta detectar objeto < `threshold_cm` o agotar el timeout |
+| `classify_as_apple()` | Envía `APPLE\n` → activa servo izquierdo |
+| `classify_as_orange()` | Envía `ORANGE\n` → activa servo derecho |
+| `close()` | Cierra el puerto serial limpiamente |
+
+**Auto-detección de puerto:** Si `SERIAL_PORT = None`, el módulo escanea puertos disponibles en Linux (`/dev/ttyUSB*`, `/dev/ttyACM*`) y Windows (`COM*`).
+
+---
+
+### `camera.py` — Captura de Imágenes
+
+Gestiona la webcam USB con una conexión **persistente** (el dispositivo no se abre y cierra en cada captura) y **thread-safe**. Incluye warmup de frames para evitar capturas oscuras o inestables al inicio.
+
+**Funciones clave:**
+
+| Función | Descripción |
+|:---|:---|
+| `capture_frame()` | Captura un frame crudo de OpenCV |
+| `frame_to_base64(frame, max_size)` | Redimensiona a ≤384px, codifica como JPEG (calidad 75) y devuelve Base64 |
+| `get_camera_data()` | Combina las anteriores — devuelve el string Base64 listo para enviar al LLM |
+| `close()` | Libera la cámara limpiamente |
+
+**Optimizaciones:** Las imágenes se redimensionan a máximo 384×384px antes de enviarlas al LLM para reducir el uso de tokens y acelerar la inferencia.
+
+---
+
+### `mcp_service.py` — Servidor MCP (Opcional)
+
+**No es necesario para el funcionamiento normal del sistema.** `service.py` controla el hardware directamente sin pasar por este módulo.
+
+Expone las mismas funciones de hardware como herramientas **MCP (Model Context Protocol)** usando la librería `FastMCP` con transporte **SSE (Server-Sent Events)** en el puerto 8000. Esto permite conectar clientes MCP externos (Claude Desktop, LMStudio con MCP, etc.) para controlar la máquina directamente.
+
+**Tools MCP expuestas:**
+
+| Tool MCP | Función equivalente |
+|:---|:---|
+| `ping_machine()` | `arduino.ping()` |
+| `get_distance()` | `arduino.get_distance()` |
+| `wait_for_fruit(threshold_cm, timeout_seconds)` | `arduino.wait_for_fruit()` |
+| `capture_photo()` | `camera.get_camera_data()` |
+| `sort_to_left()` | `tools.sort_to_left()` |
+| `sort_to_right()` | `tools.sort_to_right()` |
+
+**Ejecución:**
+```bash
+python mcp_service.py
+# Servidor escuchando en http://127.0.0.1:8000/sse
+```
+
+---
+
+## Cómo Funciona `requests`
+
+La librería `requests` es una librería HTTP de Python que permite hacer peticiones web de forma simple. En este proyecto reemplaza al SDK propietario de LMStudio, que usaba WebSockets.
+
+**¿Qué hace exactamente en este proyecto?**
+
+Cada vez que el agente necesita consultar al LLM, `llm.py` hace un **HTTP POST** al servidor local de LMStudio:
+
+```python
+response = requests.post(
+    url     = "http://127.0.0.1:1234/v1/chat/completions",
+    headers = {
+        "Content-Type":  "application/json",
+        "Authorization": "Bearer lm-studio"   # ← API Key
+    },
+    json = {
+        "model":       "qwen/qwen3-vl-4b",
+        "messages":    [...],   # historial de la conversación
+        "tools":       TOOLS_SCHEMA,   # descripción de las tools disponibles
+        "tool_choice": "auto"
+    }
+)
+```
+
+LMStudio responde con un JSON en formato OpenAI estándar. Python parsea la respuesta para determinar si el LLM quiere llamar una tool o terminar.
+
+**Ventajas sobre el SDK:**
+- Funciona con **cualquier servidor compatible con OpenAI**: LMStudio, Ollama, vLLM, OpenAI real, etc.
+- La API Key se envía explícitamente en cada petición.
+- No depende de binarios o versiones específicas del SDK.
+- El código es transparente — se puede ver exactamente qué se envía y recibe.
+
+---
+
+## Cómo Funciona el Tool-Calling (Loop Agéntico)
+
+El tool-calling es el mecanismo que permite al LLM **invocar funciones de Python** como respuesta a una imagen. El proceso es un loop de petición-respuesta entre Python y el LLM:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LOOP AGÉNTICO (máx. 5 iteraciones)        │
+│                                                             │
+│  1. Python construye el mensaje con la imagen en Base64     │
+│  2. Python envía POST a LMStudio con el TOOLS_SCHEMA        │
+│  3. LMStudio procesa imagen y decide qué tool llamar        │
+│  4. LMStudio responde con tool_calls (nombre + argumentos)  │
+│  5. Python ejecuta la función localmente                    │
+│  6. Python envía el resultado como mensaje "tool" al LLM    │
+│  7. Si el resultado es SUCCESS o DISCARD → el loop termina  │
+│  8. Si no → el LLM puede pedir otra tool → vuelve al paso 3 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Ejemplo de intercambio real:**
+
+```
+Python → LMStudio:
+  {role: "user", content: [imagen_base64, "Sort this fruit."]}
+  tools: [sort_to_left, sort_to_right, discard_fruit, get_camera_image]
+
+LMStudio → Python:
+  {role: "assistant", tool_calls: [{
+    function: {name: "sort_to_left", arguments: '{"fruit_name": "Red Gala Apple"}'}
+  }]}
+
+Python ejecuta: tools.sort_to_left("Red Gala Apple")
+  → arduino.classify_as_apple() → envía "APPLE\n" al Arduino
+  → Arduino activa servo izquierdo → responde "OK"
+  → devuelve "SUCCESS:Red Gala Apple:LEFT"
+
+Python → LMStudio:
+  {role: "tool", content: "SUCCESS:Red Gala Apple:LEFT"}
+
+→ El loop detecta "SUCCESS..." y termina. ✅
+```
+
+**¿Qué pasa si la imagen no es clara?**
+
+El LLM puede llamar `get_camera_image()` para solicitar una nueva foto. En ese caso, Python captura otro frame y **reemplaza la imagen en el historial** (en lugar de agregar un mensaje nuevo) para no desperdiciar tokens de contexto.
+
+---
+
+## Conexión con LMStudio
+
+LMStudio actúa como un servidor HTTP local que expone una API compatible con OpenAI. El sistema se conecta así:
+
+```mermaid
+sequenceDiagram
+    participant S as service.py
+    participant L as llm.py
+    participant LM as LMStudio :1234
+    participant T as tools.py
+    participant A as arduino.py
+
+    S->>L: test_connection()
+    L->>LM: POST /v1/chat/completions (ping)
+    LM-->>L: 200 OK
+    L-->>S: True ✅
+
+    S->>L: act_on_fruit(imagen_b64)
+    L->>LM: POST /v1/chat/completions<br/>+ imagen + TOOLS_SCHEMA
+    LM-->>L: tool_calls: sort_to_left("Apple")
+    L->>T: sort_to_left("Apple")
+    T->>A: classify_as_apple()
+    A-->>T: {"success": true}
+    T-->>L: "SUCCESS:Apple:LEFT"
+    L->>LM: POST (tool result: SUCCESS:Apple:LEFT)
+    LM-->>L: (fin del agente)
+    L-->>S: "SUCCESS:Apple:LEFT"
+```
+
+**Requisitos de LMStudio:**
+- LMStudio debe estar **abierto como aplicación de escritorio** con el servidor activado.
+- El servidor local debe estar en `http://127.0.0.1:1234`.
+- El modelo debe tener soporte de **visión (VLM)** y **tool-calling**.
+
+### Configuración del Modelo
+
+```bash
+# Descargar el modelo recomendado
+lms get qwen/qwen3-vl-4b
+
+# O en la interfaz de LMStudio:
+# Developer → Local Server → Load Model → qwen3-vl-4b → Start Server
+```
+
+---
+
+## Protocolo Serial Arduino
+
+La comunicación entre Python (`arduino.py`) y el firmware (`.ino`) es texto plano a 115200 baud.
+
+| Comando enviado | Respuesta esperada | Acción en Arduino |
+|:---|:---|:---|
+| `PING\n` | `PONG` | Verificación de conexión |
+| `GET_DISTANCE\n` | `"12.34"` (float en cm) | Lee el VL53L0X y devuelve distancia |
+| `APPLE\n` | `OK` | Servo izquierdo: 90° → 135° → espera 2.5s → 90° |
+| `ORANGE\n` | `OK` | Servo derecho: 90° → 45° → espera 2.5s → 90° |
+
+**Casos especiales del sensor:**
+- Si `RangeStatus == 4` (out of range): devuelve `999.0`
+- Si la lectura está fuera de 30–130mm: devuelve `999.0`
+- En `wait_for_fruit()`, Python descarta cualquier valor ≥ `threshold_cm` y sigue haciendo polling
+
+**Inicialización:** Al encender, el Arduino responde `READY` por serial. Si el sensor VL53L0X no inicializa correctamente, envía `ERROR:SENSOR_INIT` y entra en loop infinito.
 
 ---
 
 ## Configuración Rápida
 
 ### 1. LMStudio
-- Descarga e instala [LMStudio](https://lmstudio.ai/).
-- Carga el modelo `qwen3-vl-4b` (o cualquier VLM con soporte de tool-calling):
-  ```bash
-  lms get qwen/qwen3-vl-4b
-  ```
-- **Importante:** LMStudio debe estar **abierto como aplicación de escritorio**. El SDK se conecta por WebSocket automáticamente.
+
+1. Descarga e instala [LMStudio](https://lmstudio.ai/).
+2. Carga el modelo con soporte de visión y tool-calling:
+   ```
+   lms get qwen/qwen3-vl-4b
+   ```
+3. En LMStudio Desktop: **Developer → Local Server → Start Server** (puerto 1234).
 
 ### 2. Arduino
-- Abre `fruit_sorter_nuevo.ino` en el IDE de Arduino.
-- Conecta los componentes según el [diagrama del circuito](#diagrama-del-circuito).
-- Carga el sketch en tu Arduino UNO.
+
+1. Instala la librería `Adafruit_VL53L0X` desde el Library Manager del IDE de Arduino.
+2. Conecta los componentes según la [tabla de pines](#conexiones-de-pines).
+3. Abre `fruit_sorter_nuevo.ino` y cárgalo en tu Arduino UNO.
+4. Verifica en el Monitor Serial (115200 baud) que aparezca `READY`.
 
 ### 3. Python
+
 ```bash
 # Instalar dependencias
 pip install -r requirements.txt
 
 # Ejecutar el sistema
-python service.py --port COM5 --camera 1
+python service.py --port /dev/ttyUSB0 --camera 0 --threshold 13.0
 ```
 
-### Opciones de línea de comandos
+### Ejemplo de Salida en Consola
 
 ```
-python service.py [opciones]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🍓 Fruit Sorter V4+ — Agentic Runner
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  --port PORT           Puerto serial (default: auto-detect)
-  --baud BAUD           Baud rate (default: 115200)
-  --camera INDEX        Índice de cámara (default: 0)
-  --lm-model MODEL      Nombre del modelo (default: qwen/qwen3-vl-4b)
-  --threshold CM        Umbral de detección en cm (default: 20.0)
-  --sensor-timeout SEG  Timeout del sensor en segundos (default: 30)
-```
+  Puerto Serial  : /dev/ttyUSB0
+  Comunicación   : HTTP (Direct Requests)
+  API Key        : lm-studio
+  Modelo         : qwen/qwen3-vl-4b
+  Cámara Index   : 0
 
-### Ejemplo de salida
-
-```
-────────────────────────────────────────────────────────
-  🍓 Fruit Sorter V3 — Agentic Runner
-────────────────────────────────────────────────────────
-
-  Puerto serial   : COM5
-  Baud rate       : 115200
-  LMStudio SDK    : lmstudio (WebSocket, auto-connect)
-  Modelo          : qwen/qwen3-vl-4b
-  Cámara index    : 1
-
-[14:32:01] 🔗 Verificando conexión con LMStudio...
-[14:32:02] ✅ LMStudio conectado.
-[14:32:02] 🟢 Sistema de clasificación iniciado.
-[14:32:02] 🔍 Ciclo 1: Esperando fruta en el sensor...
+[14:32:01] 🟢 Sistema de clasificación iniciado.
+[14:32:01] 🔍 Ciclo 1: Esperando fruta en el sensor...
 [14:32:15] 📦 Ciclo 1: ¡Fruta detectada a 8.3cm!
 [14:32:16] 📷 Ciclo 1: Capturando imagen...
-[14:32:16] 🧠 Ciclo 1: Enviando imagen al agente LLM...
-[14:32:18]   🔧 Tool ejecutada: sort_to_left → Done. Fruit sorted to LEFT bin.
+[14:32:16] 🧠 Ciclo 1: Analizando con IA (Agente V4+)...
+[14:32:17]   🔧 IA llamando a: sort_to_left({'fruit_name': 'Red Gala Apple'})
 
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
-  ✅  FRUTA CLASIFICADA — Ciclo 1  ✅
-  Total clasificadas: 1
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  🍎  FRUTA CLASIFICADA                            ┃
+    ┃  IDENTIFICADO: RED GALA APPLE                     ┃
+    ┃  ACCIÓN: MOVER A LEFT                             ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
 ---
 
-## Arquitectura MCP Integrada en LMStudio
+## Sistema MCP (Opcional)
 
-El sistema V3 está diseñado para aprovechar el **Model Context Protocol (MCP)** consumiendo los recursos a través de un servidor remoto local. De esta forma exponemos nuestras herramientas como un micro-servicio independiente y podemos conectar tantos Servidores MCP como necesitemos en un futuro.
+Si quieres controlar la máquina desde un cliente MCP externo (Claude Desktop, LMStudio con MCP):
 
-### Configuración del Servidor y Cliente
-1. **Inicia tu servidor base:** Mantén este servidor corriendo en segundo plano dentro desde otra terminal antes de consumir la IA, escuchará en el puerto 8000 con tecnología `sse` (Server-Sent Events):
+1. Inicia el servidor MCP:
    ```bash
    python mcp_service.py
+   # Servidor SSE en http://127.0.0.1:8000/sse
    ```
-2. Abre **LMStudio Desktop** y navega a la tuerca central de **Developer / MCP Server Configuration**.
-3. En la configuración local añade una vinculación usando la modalidad `sse` apuntando a tu servidor local. Aquí un ejemplo de configuración aplicable:
 
-```json
-{
-  "mcpServers": {
-    "fruit-sorter-machine": {
-      "url": "http://127.0.0.1:8000/sse"
-    }
-  }
-}
-```
-4. El agente Qwen dentro del SDK de Python automáticamente usará las llaves de este servidor flotante en el aire para enviar señales al Arduino, operando bajo sus propias reglas con cero acoplamiento.
+2. En LMStudio Desktop → **Developer → MCP Server Configuration**:
+   ```json
+   {
+     "mcpServers": {
+       "fruit-sorter-machine": {
+         "url": "http://127.0.0.1:8000/sse"
+       }
+     }
+   }
+   ```
+
+3. El cliente MCP podrá llamar directamente `sort_to_left`, `get_distance`, `capture_photo`, etc.
+
+> **Importante:** `mcp_service.py` y `service.py` **no deben correr al mismo tiempo** sobre el mismo puerto serial — ambos necesitarían acceso exclusivo al Arduino.
 
 ---
 
@@ -275,15 +575,33 @@ El sistema V3 está diseñado para aprovechar el **Model Context Protocol (MCP)*
 
 ```
 Clasificador-de-frutas-/
-├── service.py          # Punto de entrada — loop de detección + agente
-├── tools.py            # Tools que el LLM puede llamar (sort_to_left, etc.)
-├── llm.py              # Agente de IA — model.act() con visión + tools
-├── arduino.py          # Comunicación serial persistente con Arduino
-├── camera.py           # Captura de imágenes con webcam (persistente)
-├── mcp_service.py      # (Opcional) Servidor MCP para clientes externos
-├── requirements.txt    # Dependencias de Python
-└── README.md           # Este archivo
+│
+├── service.py           # ▶ PUNTO DE ENTRADA — loop de detección y clasificación
+├── llm.py               # Agente de IA — loop agéntico via requests (HTTP/OpenAI)
+├── tools.py             # Herramientas del LLM — schemas JSON + implementaciones Python
+├── arduino.py           # Comunicación serial persistente con Arduino (VL53L0X + servos)
+├── camera.py            # Captura de imágenes con webcam (conexión persistente)
+├── mcp_service.py       # (Opcional) Servidor MCP via FastMCP + SSE
+│
+├── fruit_sorter_nuevo.ino   # Firmware Arduino: VL53L0X (I2C) + 2× servo MG995
+├── requirements.txt         # Dependencias Python
+│
+└── assets/
+    ├── circuit_diagram.png  # Diagrama del circuito
+    ├── maqueta.jpeg         # Foto de la maqueta física
+    ├── demo.gif             # Demo animado
+    └── demo.mp4             # Demo en video
 ```
+
+### Dependencias Python (`requirements.txt`)
+
+| Librería | Uso |
+|:---|:---|
+| `opencv-python` | Captura y procesamiento de imágenes de la webcam |
+| `pyserial` | Comunicación serial con el Arduino |
+| `requests` | Peticiones HTTP al servidor OpenAI-compatible de LMStudio |
+| `fastmcp` | Servidor MCP con transporte SSE (solo `mcp_service.py`) |
+| `colorama` | Colores ANSI en consola (compatibilidad Windows) |
 
 ---
 
@@ -296,4 +614,5 @@ Clasificador-de-frutas-/
 **[Cristofer Piña Rodriguez](https://github.com/cristoferpina)**
 
 **[Mauricio Sanchez Garcia](https://github.com/mau05126-jpg)**
+
 </div>
