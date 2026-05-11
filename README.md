@@ -14,6 +14,25 @@
 
 ---
 
+## 📑 Tabla de Contenidos
+
+* [Descripción General](#descripción-general)
+* [¿Qué cambió en V4?](#qué-cambió-en-v4)
+* [Hardware](#hardware)
+* [Arquitectura del Sistema](#arquitectura-del-sistema)
+* [Módulos de Software](#módulos-de-software)
+* [Cómo Funciona requests](#cómo-funciona-requests)
+* [Cómo Funciona el Tool-Calling](#cómo-funciona-el-tool-calling-loop-agéntico)
+* [Conexión con LMStudio](#conexión-con-lmstudio)
+* [Protocolo Serial Arduino](#protocolo-serial-arduino)
+* [Configuración Rápida](#configuración-rápida)
+* [Generación de Reporte Técnico](#generación-de-reporte-técnico)
+* [Solución de Problemas](#solución-de-problemas)
+* [Estructura del Repositorio](#estructura-del-repositorio)
+* [Licencia](#licencia)
+
+---
+
 ## Descripción General
 
 Sistema de clasificación de frutas completamente automatizado con **agente de IA local**. Una fruta se coloca en una rampa; un **sensor láser VL53L0X** detecta su presencia, una **webcam** captura la imagen y un **agente LLM** (Qwen3-VL ejecutado localmente en LMStudio) identifica la fruta y llama la herramienta correcta para mover los servomotores del Arduino — sin decisiones hardcodeadas en Python.
@@ -540,6 +559,34 @@ Si quieres controlar la máquina desde un cliente MCP externo (Claude Desktop, L
 
 ---
 
+## Generación de Reporte Técnico
+
+El proyecto incluye un script especializado para generar un reporte técnico detallado en formato PDF, que incluye la arquitectura, diagramas y fragmentos de código con resaltado de sintaxis.
+
+```bash
+# Asegúrate de tener las dependencias instaladas
+pip install reportlab pygments
+
+# Ejecutar el generador
+python generate_pdf.py
+```
+
+El archivo resultante será `Reporte_Tecnico_FruitSorter_V4.pdf`.
+
+---
+
+## Solución de Problemas
+
+| Problema | Posible Solución |
+|:---|:---|
+| **Error de puerto serial** | Verifica que el Arduino esté conectado y que el puerto en `service.py` sea correcto. En Linux, asegúrate de tener permisos (`sudo usermod -a -G dialout $USER`). |
+| **Cámara no abre** | Cambia el índice `--camera` (prueba con 0, 1 o 2). |
+| **LMStudio no responde** | Verifica que el servidor esté encendido en el puerto 1234 y que el modelo de visión esté cargado. |
+| **Detección falsa o nula** | Ajusta el valor de `--threshold` según la distancia física de tu sensor a la fruta. |
+| **Sensor VL53L0X no inicia** | Revisa las conexiones I2C (SDA/SCL) y asegúrate de que la dirección sea `0x29`. |
+
+---
+
 ## Estructura del Repositorio
 
 ```
@@ -551,6 +598,7 @@ Clasificador-de-frutas-/
 ├── arduino.py           # Comunicación serial persistente con Arduino (VL53L0X + servos)
 ├── camera.py            # Captura de imágenes con webcam (conexión persistente)
 ├── mcp_service.py       # (Opcional) Servidor MCP via FastMCP + SSE
+├── generate_pdf.py      # Generador de reporte técnico en PDF
 │
 ├── fruit_sorter_nuevo.ino   # Firmware Arduino: VL53L0X (I2C) + 2× servo MG995
 ├── requirements.txt         # Dependencias Python
@@ -571,6 +619,18 @@ Clasificador-de-frutas-/
 | `requests` | Peticiones HTTP al servidor OpenAI-compatible de LMStudio |
 | `fastmcp` | Servidor MCP con transporte SSE (solo `mcp_service.py`) |
 | `colorama` | Colores ANSI en consola (compatibilidad Windows) |
+
+---
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles (o siéntete libre de usarlo para fines educativos).
+
+---
+
+## Contribuir
+
+¡Las contribuciones son bienvenidas! Si tienes ideas para mejorar el loop agéntico, optimizar el firmware o mejorar la precisión del sensor, no dudes en abrir un Pull Request.
 
 ---
 
