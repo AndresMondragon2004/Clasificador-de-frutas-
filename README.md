@@ -72,13 +72,13 @@ El **VL53L0X** es un sensor de distancia de **tiempo de vuelo (ToF)** que usa un
 | Valor cuando no hay objeto | `999.0` (fuera de rango o error de medición) |
 | Librería Arduino | `Adafruit_VL53L0X` |
 
-### Diagrama del Circuito
+### Diagrama del Circuito y Arquitectura Integral
 
 <div align="center">
-
-<img src="assets/circuit_diagram.png" alt="Diagrama del circuito" width="700"/>
-
+  <img src="assets/Diagrama (2).png" alt="Diagrama Integral del Sistema (Hardware + Software)" width="900"/>
 </div>
+
+Este diagrama detalla tanto las conexiones físicas (Arduino, sensores, servos) como el flujo lógico de los módulos de software y el agente de IA. Con un fondo blanco para mayor claridad.
 
 ### Conexiones de Pines
 
@@ -101,7 +101,7 @@ El **VL53L0X** es un sensor de distancia de **tiempo de vuelo (ToF)** que usa un
 ### Diagrama General de Funcionamiento
 
 <div align="center">
-  <img src="assets/NuevoDiagrama.png" alt="Diagrama de Arquitectura Hardware y Software" width="900"/>
+  <img src="assets/Diagrama (2).png" alt="Diagrama de Arquitectura Hardware y Software" width="900"/>
 </div>
 
 Este diagrama ilustra la interacción completa entre el hardware (Arduino, sensores y actuadores) y el flujo de software (módulos de Python e IA local).

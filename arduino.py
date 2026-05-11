@@ -14,8 +14,10 @@ import threading
 import glob
 import serial
 
+import sys
+
 # === CONFIGURATION ===
-SERIAL_PORT = "COM5"  # Auto-detect if None; override with e.g. "/dev/ttyUSB0" or "COM5"
+SERIAL_PORT = None  # Auto-detect if None; override with e.g. "/dev/ttyUSB0" or "COM5"
 SERIAL_BAUD = 115200
 
 # Timeouts
@@ -26,6 +28,26 @@ SENSOR_POLL_INTERVAL = 0.3  # Seconds between distance polls
 # === INTERNAL STATE ===
 _serial_lock = threading.Lock()
 _serial_conn: serial.Serial | None = None
+
+def _auto_detect_port() -> str | None:
+    """Find the first available serial port (Arduino)."""
+    if sys.platform.startswith('win'):
+        ports = [f'COM{i}' for i in range(1, 21)]
+    elif sys.platform.startswith('linux'):
+        ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
+    elif sys.platform.startswith('darwin'):
+        ports = glob.glob('/dev/tty.usbmodem*') + glob.glob('/dev/tty.usbserial*')
+    else:
+        return None
+
+    for port in ports:
+        try:
+            s = serial.Serial(port)
+            s.close()
+            return port
+        except (OSError, serial.SerialException):
+            continue
+    return None
 
 def _get_serial() -> serial.Serial:
     """Return the persistent serial connection, creating it on first call."""

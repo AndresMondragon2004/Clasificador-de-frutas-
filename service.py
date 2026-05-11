@@ -83,7 +83,36 @@ def print_result_box(status: str) -> None:
 
 # === STATE ===
 _running = False
-_stats = {"cycles": 0, "sorted": 0, "discarded": 0}
+_stats = {
+    "cycles": 0, 
+    "apples": 0, 
+    "oranges": 0, 
+    "discarded": 0
+}
+
+# === DASHBOARD ===
+
+def print_dashboard() -> None:
+    """Prints a live dashboard with current statistics."""
+    total = _stats["apples"] + _stats["oranges"] + _stats["discarded"]
+    
+    # Simple bar chart logic
+    def bar(val, total_val):
+        if total_val == 0: return ""
+        length = int((val / total_val) * 20)
+        return "█" * length
+
+    print(f"\n{BOLD}{CYAN}📊 DASHBOARD DE RENDIMIENTO{RESET}")
+    print(f"┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓")
+    print(f"┃ {BOLD}Categoría{RESET}          ┃ {BOLD}Cantidad{RESET}   ┃ {BOLD}Distribución{RESET}         ┃")
+    print(f"┣━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━┫")
+    print(f"┃ 🍎 Manzanas         ┃ {c(GREEN, str(_stats['apples']).ljust(10))} ┃ {c(GREEN, bar(_stats['apples'], total).ljust(20))} ┃")
+    print(f"┃ 🍊 Naranjas         ┃ {c(YELLOW, str(_stats['oranges']).ljust(10))} ┃ {c(YELLOW, bar(_stats['oranges'], total).ljust(20))} ┃")
+    print(f"┃ ⚠️  Descartados      ┃ {c(RED, str(_stats['discarded']).ljust(10))} ┃ {c(RED, bar(_stats['discarded'], total).ljust(20))} ┃")
+    print(f"┣━━━━━━━━━━━━━━━━━━━━╋━━━━━━━━━━━━╋━━━━━━━━━━━━━━━━━━━━━━┫")
+    print(f"┃ {BOLD}TOTAL{RESET}              ┃ {c(WHITE, str(total).ljust(10))} ┃ {BOLD}Ciclos:{RESET} {c(CYAN, str(_stats['cycles']).ljust(12))} ┃")
+    print(f"┗━━━━━━━━━━━━━━━━━━━━┻━━━━━━━━━━━━┻━━━━━━━━━━━━━━━━━━━━━━┛\n")
+
 
 # === AGENT MESSAGE HANDLER ===
 
@@ -100,21 +129,33 @@ def _on_agent_message(role: str, content: str) -> None:
 
 def sorting_loop(threshold_cm: float = 13.0) -> None:
     global _running
-    log("🟢 Sistema de clasificación iniciado.", GREEN)
+    log("🟢 Iniciando hardware y verificando IA...", GREEN)
+    
+    # Test connection inside the loop start to show the dashboard faster
+    if not llm.test_connection():
+        log("❌ Error: No se pudo conectar a LMStudio (¿Server iniciado?)", RED)
+        return
+
+    log("✅ Conexión con IA establecida.", GREEN)
+    log("🚀 Sistema de clasificación en marcha.", BOLD + BLUE)
 
     while _running:
         _stats["cycles"] += 1
         cycle = _stats["cycles"]
 
-        log(f"🔍 Ciclo {cycle}: Esperando fruta en el sensor...", DIM)
+        log(f"🔍 Ciclo {cycle}: Esperando fruta...", DIM)
+        
+        # Display dashboard every 5 cycles or after a classification
+        if cycle % 5 == 0:
+            print_dashboard()
 
         result = arduino.wait_for_fruit(threshold_cm=threshold_cm, timeout_seconds=30)
         
-        if not result["success"]:
+        if not result["detected"]:
             log(f"⏳ Ciclo {cycle}: Tiempo agotado sin detección.", YELLOW)
             continue
 
-        log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {result['distance']}cm!", GREEN)
+        log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {result['distance_cm']}cm!", GREEN)
         log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
         
         img_b64 = camera.get_camera_data()
@@ -122,7 +163,7 @@ def sorting_loop(threshold_cm: float = 13.0) -> None:
             log("❌ Error al capturar imagen de la cámara.", RED)
             continue
 
-        log(f"🧠 Ciclo {cycle}: Analizando con IA (Agente V4+)...", MAGENTA)
+        log(f"🧠 Ciclo {cycle}: Analizando con IA...", MAGENTA)
         
         agent_status = llm.act_on_fruit(img_b64, on_message=_on_agent_message)
         
@@ -130,22 +171,28 @@ def sorting_loop(threshold_cm: float = 13.0) -> None:
         print_result_box(agent_status)
         
         if agent_status.startswith("SUCCESS"):
-            _stats["sorted"] += 1
+            if "LEFT" in agent_status or "APPLE" in agent_status.upper():
+                _stats["apples"] += 1
+            else:
+                _stats["oranges"] += 1
         else:
             _stats["discarded"] += 1
+            
+        # Update dashboard after each result
+        print_dashboard()
 
-        time.sleep(1.0) # Small pause between cycles
+        time.sleep(0.5) 
 
 
 # === CONFIG DISPLAY ===
 
 def _print_config() -> None:
     banner("🍓 Fruit Sorter V4+ — Agentic Runner", color=GREEN)
-    print(f"  {BOLD}Puerto Serial{RESET} : {c(CYAN, arduino.SERIAL_PORT or 'AUTO')}")
-    print(f"  {BOLD}Comunicación {RESET} : {c(CYAN, 'HTTP (Direct Requests)')}")
-    print(f"  {BOLD}API Key      {RESET} : {c(YELLOW, llm.LMSTUDIO_API_KEY)}")
-    print(f"  {BOLD}Modelo       {RESET} : {c(CYAN, llm.LMSTUDIO_MODEL)}")
-    print(f"  {BOLD}Cámara Index {RESET} : {c(CYAN, str(camera.CAMERA_INDEX))}")
+    
+    # "Quick Cards" style config
+    print(f"  {BG_BLUE}{WHITE} SISTEMA {RESET} {BOLD}Port:{RESET} {c(CYAN, arduino.SERIAL_PORT or 'AUTO')} | {BOLD}Cam:{RESET} {c(CYAN, str(camera.CAMERA_INDEX))}")
+    print(f"  {BG_GREEN}{WHITE} IA PROC {RESET} {BOLD}Modl:{RESET} {c(CYAN, llm.LMSTUDIO_MODEL)}")
+    print(f"  {BG_RED}{WHITE} CONFIG  {RESET} {BOLD}Thrs:{RESET} {c(YELLOW, '13.0 cm')}")
     print(f"\n  {c(DIM, 'Presiona Ctrl+C para detener el sistema.')}\n")
 
 
