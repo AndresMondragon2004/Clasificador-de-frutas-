@@ -1,36 +1,30 @@
 /*
- * Fruit Sorter — Arduino Uno (V4 - Optimized)
- *
- * Controla 2 servomotores + sensor láser VL53L0X (I2C)
- * Versión simplificada: Elimina la lógica de empuje del segundo servo.
- *
- * Protocolo serial (115200 baud):
- *   APPLE\n      → acciona servo 1 (manzana/izquierda)
- *   ORANGE\n     → acciona servo 2 (naranja/derecha)
- *   PING\n       → responde PONG
- *   GET_DISTANCE\n → responde con la distancia en cm (ej. "12.34")
- *
- * Responde OK\n tras ejecutar APPLE / ORANGE.
+ * Fruit Sorter — Arduino Uno
+ * Servo Izquierdo (pin 9) → 75° inicial
+ * Servo Derecho   (pin 11) → 90° inicial
  */
+
 #include <Servo.h>
 #include "Adafruit_VL53L0X.h"
 
-// === SENSOR LÁSER VL53L0X ===
+// === SENSOR ===
 Adafruit_VL53L0X sensor;
 
 // === PINES ===
-const int SERVO_LEFT_PIN   = 9;
-const int SERVO_RIGHT_PIN  = 10;
+const int SERVO_LEFT_PIN  = 9;
+const int SERVO_RIGHT_PIN = 11;
 
-// === SERVO: ángulos principales ===
-const int NEUTRAL_ANGLE = 90;
-const int LEFT_ANGLE    = 135;
-const int RIGHT_ANGLE   = 45;
-const int RETURN_DELAY  = 2500; // Tiempo que la compuerta permanece abierta
+// === ÁNGULOS ===
+const int INITIAL_LEFT  = 75;
+const int INITIAL_RIGHT = 90;
+const int APPLE_ANGLE   = 135;   // Abre compuerta izquierda
+const int ORANGE_ANGLE  = 45;    // Abre compuerta derecha
 
-// === SENSOR: rango válido (en mm) ===
-const int SENSOR_MIN_MM = 30;   
-const int SENSOR_MAX_MM = 130;  
+const int RETURN_DELAY = 3000;   // ms que la compuerta permanece abierta
+
+// === SENSOR ===
+const int SENSOR_MIN_MM = 30;
+const int SENSOR_MAX_MM = 130;
 
 Servo servoLeft;
 Servo servoRight;
@@ -44,15 +38,14 @@ void setup() {
     while (1);
   }
 
-  // Alta precisión para lecturas consistentes
-  sensor.configSensor(Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_ACCURACY);
+  // HIGH_SPEED: ~20ms por lectura
+  sensor.configSensor(Adafruit_VL53L0X::VL53L0X_SENSE_HIGH_SPEED);
 
   servoLeft.attach(SERVO_LEFT_PIN);
   servoRight.attach(SERVO_RIGHT_PIN);
-  
-  // Posición inicial neutra
-  servoLeft.write(NEUTRAL_ANGLE);
-  servoRight.write(NEUTRAL_ANGLE);
+
+  servoLeft.write(INITIAL_LEFT);
+  servoRight.write(INITIAL_RIGHT);
 
   Serial.println("READY");
 }
@@ -70,7 +63,6 @@ void loop() {
   }
 }
 
-// === SENSOR ===
 float get_distance() {
   VL53L0X_RangingMeasurementData_t medicion;
   sensor.rangingTest(&medicion, false);
@@ -83,22 +75,19 @@ float get_distance() {
   return mm / 10.0;
 }
 
-// === COMANDOS ===
 void processCommand(String command) {
   command.toUpperCase();
 
   if (command == "APPLE") {
-    // Comando APPLE ahora solo mueve el servo izquierdo sin empujes extra
-    servoLeft.write(LEFT_ANGLE);
+    servoLeft.write(APPLE_ANGLE);
     delay(RETURN_DELAY);
-    servoLeft.write(NEUTRAL_ANGLE);
+    servoLeft.write(INITIAL_LEFT);
     Serial.println("OK");
   }
   else if (command == "ORANGE") {
-    // Comando ORANGE ahora solo mueve el servo derecho sin empujes extra
-    servoRight.write(RIGHT_ANGLE);
+    servoRight.write(ORANGE_ANGLE);
     delay(RETURN_DELAY);
-    servoRight.write(NEUTRAL_ANGLE);
+    servoRight.write(INITIAL_RIGHT);
     Serial.println("OK");
   }
   else if (command == "PING") {

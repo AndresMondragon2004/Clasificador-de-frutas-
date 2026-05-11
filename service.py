@@ -57,26 +57,26 @@ def print_result_box(status: str) -> None:
     """Prints a beautiful summary box for the sorting result."""
     # Status format: SUCCESS:FruitName:Direction or DISCARD:Reason
     parts = status.split(":")
-    
+
     print("\n" + " " * 4 + "┏" + "━" * 50 + "┓")
-    
+
     if parts[0] == "SUCCESS":
-        fruit = parts[1]
-        direction = parts[2]
+        direction = parts[2] if len(parts) > 2 else "LEFT"
+        fruit = "MANZANA" if direction == "LEFT" else "NARANJA"
         icon = "🍎" if direction == "LEFT" else "🍊"
         color_bg = BG_GREEN if direction == "LEFT" else BG_BLUE
-        
+
         print(" " * 4 + "┃" + f"  {icon}  {BOLD}{WHITE}FRUTA CLASIFICADA{RESET}".center(58) + "┃")
-        print(" " * 4 + "┃" + f"  {BOLD}IDENTIFICADO:{RESET} {c(YELLOW, fruit.upper())}".center(58) + "┃")
+        print(" " * 4 + "┃" + f"  {BOLD}IDENTIFICADO:{RESET} {c(YELLOW, fruit)}".center(58) + "┃")
         print(" " * 4 + "┃" + f"  {BOLD}ACCIÓN:{RESET} {color_bg}{WHITE} MOVER A {direction} {RESET}".center(67) + "┃")
-    
+
     elif parts[0] == "DISCARD":
         print(" " * 4 + "┃" + f"  ⚠️  {BOLD}{WHITE}OBJETO DESCARTADO{RESET}".center(58) + "┃")
         print(" " * 4 + "┃" + f"  {BOLD}MOTIVO:{RESET} {c(RED, parts[1])}".center(58) + "┃")
-    
+
     else:
         print(" " * 4 + "┃" + f"  ❌  {BOLD}{RED}ERROR DE AGENTE{RESET}".center(58) + "┃")
-        print(" " * 4 + "┃" + f"  {content[:46]}...".center(50) + "┃")
+        print(" " * 4 + "┃" + f"  {status[:46]}...".center(50) + "┃")
 
     print(" " * 4 + "┗" + "━" * 50 + "┛\n")
 
@@ -119,10 +119,8 @@ def print_dashboard() -> None:
 def _on_agent_message(role: str, content: str) -> None:
     """Log messages from the LLM agent during .act() execution."""
     if role == "tool":
-        log(f"  🔧 IA llamando a: {c(YELLOW, content)}", BLUE)
-    elif role == "assistant":
-        # Limit assistant text to avoid clutter
-        log(f"  🤖 IA pensando: {c(DIM, content[:80])}...", MAGENTA)
+        tool_name = content.split("(")[0]
+        log(f"  🔧 IA → {c(YELLOW, tool_name)}", BLUE)
 
 
 # === MAIN SORTING LOOP ===
@@ -143,45 +141,51 @@ def sorting_loop(threshold_cm: float = 13.0) -> None:
         _stats["cycles"] += 1
         cycle = _stats["cycles"]
 
-        log(f"🔍 Ciclo {cycle}: Esperando fruta...", DIM)
-        
-        # Display dashboard every 5 cycles or after a classification
-        if cycle % 5 == 0:
-            print_dashboard()
+        try:
+            log(f"🔍 Ciclo {cycle}: Esperando fruta...", DIM)
 
-        result = arduino.wait_for_fruit(threshold_cm=threshold_cm, timeout_seconds=30)
-        
-        if not result["detected"]:
-            log(f"⏳ Ciclo {cycle}: Tiempo agotado sin detección.", YELLOW)
-            continue
+            result = arduino.wait_for_fruit(threshold_cm=threshold_cm, timeout_seconds=30)
 
-        log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {result['distance_cm']}cm!", GREEN)
-        log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
-        
-        img_b64 = camera.get_camera_data()
-        if not img_b64:
-            log("❌ Error al capturar imagen de la cámara.", RED)
-            continue
+            if not result["detected"]:
+                log(f"⏳ Ciclo {cycle}: Tiempo agotado sin detección.", YELLOW)
+                continue
 
-        log(f"🧠 Ciclo {cycle}: Analizando con IA...", MAGENTA)
-        
-        agent_status = llm.act_on_fruit(img_b64, on_message=_on_agent_message)
-        
-        # Display aesthetic result
-        print_result_box(agent_status)
-        
-        if agent_status.startswith("SUCCESS"):
-            if "LEFT" in agent_status or "APPLE" in agent_status.upper():
-                _stats["apples"] += 1
+            log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {result['distance_cm']}cm!", GREEN)
+            log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
+
+            img_b64 = camera.get_camera_data()
+            if not img_b64:
+                log("❌ Error al capturar imagen de la cámara.", RED)
+                continue
+
+            log(f"🧠 Ciclo {cycle}: Analizando con IA...", MAGENTA)
+
+            agent_status = llm.act_on_fruit(img_b64, on_message=_on_agent_message)
+
+            if agent_status.startswith("SUCCESS"):
+                parts = agent_status.split(":")
+                direction = parts[2] if len(parts) > 2 else ""
+                if direction == "LEFT":
+                    _stats["apples"] += 1
+                    log(f"🍎 Ciclo {cycle}: MANZANA → izquierda ✓", GREEN)
+                else:
+                    _stats["oranges"] += 1
+                    log(f"🍊 Ciclo {cycle}: NARANJA → derecha ✓", YELLOW)
+                # Esperar a que el Arduino termine de mover el servo y la fruta salga
+                time.sleep(3.5)
+            elif agent_status.startswith("DISCARD"):
+                _stats["discarded"] += 1
+                log(f"⚠️  Ciclo {cycle}: Descartado.", YELLOW)
+                time.sleep(1.0)
             else:
-                _stats["oranges"] += 1
-        else:
-            _stats["discarded"] += 1
-            
-        # Update dashboard after each result
-        print_dashboard()
+                _stats["discarded"] += 1
+                log(f"⚠️  Ciclo {cycle}: No reconocido — {agent_status[:60]}", YELLOW)
+                time.sleep(1.0)
 
-        time.sleep(0.5) 
+        except Exception as e:
+            log(f"⚠️  Ciclo {cycle}: Error inesperado — {e}. Continuando...", YELLOW)
+            time.sleep(1)
+            continue
 
 
 # === CONFIG DISPLAY ===

@@ -26,13 +26,19 @@ def _get_camera() -> cv2.VideoCapture | None:
     if _camera_conn is not None and _camera_conn.isOpened():
         return _camera_conn
 
-    # Try the configured index first, then scan others
-    cap = cv2.VideoCapture(CAMERA_INDEX)
+    # Use DSHOW on Windows to avoid MSMF errors; fallback to default
+    def _open(index):
+        cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(index)
+        return cap
+
+    cap = _open(CAMERA_INDEX)
     if not cap.isOpened():
         for i in range(5):
             if i == CAMERA_INDEX:
                 continue
-            cap = cv2.VideoCapture(i)
+            cap = _open(i)
             if cap.isOpened():
                 break
 

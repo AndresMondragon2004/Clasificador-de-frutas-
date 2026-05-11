@@ -19,16 +19,13 @@ LMSTUDIO_MODEL = "qwen/qwen3-vl-4b"
 LMSTUDIO_API_KEY = "lm-studio"
 
 SYSTEM_PROMPT = (
-    "You are an autonomous fruit sorting machine controller. "
-    "Identify the fruit and call the correct tool with the fruit's name.\n\n"
+    "You are a fruit sorting machine controller. "
+    "Look at the image and call the correct tool immediately.\n\n"
     "RULES:\n"
-    "- Apples (any color) -> sort_to_left(fruit_name='Specific Apple Type')\n"
-    "- Oranges (any)      -> sort_to_right(fruit_name='Specific Orange Type')\n"
-    "- Unknown/None       -> discard_fruit()\n\n"
-    "INSTRUCTIONS:\n"
-    "1. Identify the specific variety if possible (e.g. 'Red Gala Apple').\n"
-    "2. Call the tool with the fruit_name argument.\n"
-    "3. No reasoning, just the tool call."
+    "- Apple (red, green, or yellow round fruit) → sort_to_left\n"
+    "- Orange (orange-colored round citrus fruit) → sort_to_right\n"
+    "- Not a fruit or completely unclear → discard_fruit\n\n"
+    "Call exactly one tool. No explanations."
 )
 
 
@@ -52,9 +49,9 @@ def act_on_fruit(image_b64: str, on_message=None) -> str:
         "Authorization": f"Bearer {LMSTUDIO_API_KEY}"
     }
 
-    # Content structure for vision models
+    # /no_think disables qwen3's extended thinking mode (faster + less drift)
     user_content = [
-        {"type": "text", "text": "Sort this fruit."},
+        {"type": "text", "text": "/no_think Sort this fruit."},
         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
     ]
 
@@ -69,7 +66,9 @@ def act_on_fruit(image_b64: str, on_message=None) -> str:
                 "model": LMSTUDIO_MODEL,
                 "messages": messages,
                 "tools": tools.TOOLS_SCHEMA,
-                "tool_choice": "auto"
+                "tool_choice": "required",
+                "temperature": 0,
+                "max_tokens": 200,
             }
 
             response = requests.post(API_URL, headers=headers, json=payload)

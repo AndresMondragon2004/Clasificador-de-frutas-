@@ -23,7 +23,7 @@ SERIAL_BAUD = 115200
 # Timeouts
 TIMEOUT_SHORT = 5       # PING, GET_DISTANCE
 TIMEOUT_SORT = 10       # APPLE / ORANGE (3s servo + margin)
-SENSOR_POLL_INTERVAL = 0.3  # Seconds between distance polls
+SENSOR_POLL_INTERVAL = 0.05  # Seconds between distance polls
 
 # === INTERNAL STATE ===
 _serial_lock = threading.Lock()

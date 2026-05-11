@@ -13,18 +13,14 @@ import base64
 
 def sort_to_left(fruit_name: str = "Fruit") -> str:
     """Sort the detected fruit to the LEFT bin."""
-    result = arduino.classify_as_apple()
-    if result["success"]:
-        return f"SUCCESS:{fruit_name}:LEFT"
-    return f"ERROR:Sorting failed for {fruit_name}"
+    arduino.classify_as_apple()
+    return f"SUCCESS:{fruit_name}:LEFT"
 
 
 def sort_to_right(fruit_name: str = "Fruit") -> str:
     """Sort the detected fruit to the RIGHT bin."""
-    result = arduino.classify_as_orange()
-    if result["success"]:
-        return f"SUCCESS:{fruit_name}:RIGHT"
-    return f"ERROR:Sorting failed for {fruit_name}"
+    arduino.classify_as_orange()
+    return f"SUCCESS:{fruit_name}:RIGHT"
 
 
 def discard_fruit() -> str:
@@ -47,13 +43,13 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "sort_to_left",
-            "description": "Sort the detected fruit to the LEFT bin (e.g., for apples).",
+            "description": "Sort the detected fruit to the LEFT bin (apples).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "fruit_name": {
                         "type": "string",
-                        "description": "The specific name of the fruit (e.g., 'Red Apple', 'Green Apple')."
+                        "description": "Name of the fruit (e.g., 'Red Apple', 'Green Apple')."
                     }
                 },
                 "required": ["fruit_name"]
@@ -64,13 +60,13 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "sort_to_right",
-            "description": "Sort the detected fruit to the RIGHT bin (e.g., for oranges).",
+            "description": "Sort the detected fruit to the RIGHT bin (oranges).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "fruit_name": {
                         "type": "string",
-                        "description": "The specific name of the fruit (e.g., 'Navel Orange', 'Tangerine')."
+                        "description": "Name of the fruit (e.g., 'Navel Orange', 'Tangerine')."
                     }
                 },
                 "required": ["fruit_name"]
@@ -81,18 +77,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "discard_fruit",
-            "description": "Discard the fruit when unknown or no fruit is visible.",
-            "parameters": {
-                "type": "object",
-                "properties": {}
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_camera_image",
-            "description": "Take another photo if the first one was unclear.",
+            "description": "Discard only if the object is clearly NOT a fruit. When in doubt, classify as apple or orange.",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -106,5 +91,4 @@ AVAILABLE_FUNCTIONS = {
     "sort_to_left": sort_to_left,
     "sort_to_right": sort_to_right,
     "discard_fruit": discard_fruit,
-    "get_camera_image": get_camera_image
 }
