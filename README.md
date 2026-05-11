@@ -98,40 +98,13 @@ El **VL53L0X** es un sensor de distancia de **tiempo de vuelo (ToF)** que usa un
 
 ## Arquitectura del Sistema
 
-### Diagrama General
+### Diagrama General de Funcionamiento
 
-```mermaid
-graph TD
-    A["service.py\nOrquestador principal\nLoop de detección y clasificación"]
-    B["arduino.py\nComunicación serial\n115200 baud"]
-    C["camera.py\nWebcam USB\nCaptura de imagen"]
-    D["llm.py\nAgente de IA\nHTTP → LMStudio"]
-    E["tools.py\nHerramientas del LLM\nsort_to_left / sort_to_right"]
-    F["mcp_service.py\n(Opcional) Servidor MCP\nSSE port 8000"]
+<div align="center">
+  <img src="assets/NuevoDiagrama.png" alt="Diagrama de Arquitectura Hardware y Software" width="900"/>
+</div>
 
-    subgraph Hardware
-        HW1["Arduino UNO R3"]
-        HW2["Sensor VL53L0X\n(láser I2C)"]
-        HW3["Servos MG995\n(compuertas)"]
-    end
-
-    subgraph LMStudio Local
-        LM["Qwen3-VL-4B\nOpenAI API :1234"]
-    end
-
-    A -->|"GET_DISTANCE\ndetección de fruta"| B
-    A -->|"capture_frame()"| C
-    A -->|"act_on_fruit(imagen)"| D
-    D -->|"POST /v1/chat/completions\n+ tools schema"| LM
-    LM -->|"tool_calls JSON"| D
-    D -->|"ejecuta tool"| E
-    E -->|"APPLE / ORANGE"| B
-    B -->|"Serial 115200"| HW1
-    HW1 -->|"I2C"| HW2
-    HW1 -->|"PWM"| HW3
-    F -.->|"expone tools via SSE\n(uso opcional)"| B
-    F -.-> C
-```
+Este diagrama ilustra la interacción completa entre el hardware (Arduino, sensores y actuadores) y el flujo de software (módulos de Python e IA local).
 
 ### Flujo de un Ciclo Completo
 
