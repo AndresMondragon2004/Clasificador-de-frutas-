@@ -82,6 +82,10 @@ Este diagrama detalla tanto las conexiones físicas (Arduino, sensores, servos) 
 
 ### Conexiones de Pines
 
+<div align="center">
+  <img src="assets/NuevoDiagrama.png" alt="Conexiones de Pines y Hardware" width="900"/>
+</div>
+
 | Pin Arduino | Componente | Función |
 |:---:|:---|:---|
 | `A4 (SDA)` | VL53L0X → SDA | Datos I2C (dirección `0x29`) |
