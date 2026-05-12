@@ -3,3 +3,5 @@ pyserial
 requests
 fastmcp
 colorama
+reportlab
+pygments
