@@ -45,6 +45,9 @@ def _get_camera() -> cv2.VideoCapture | None:
     if not cap.isOpened():
         return None
 
+    # OPTIMIZATION: Set buffer size to 1 to avoid "memory effect"
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
     # Warmup: discard initial dark/unstable frames
     for _ in range(WARMUP_FRAMES):
         cap.read()
@@ -54,13 +57,21 @@ def _get_camera() -> cv2.VideoCapture | None:
 
 
 def capture_frame():
-    """Capture a single frame. Returns the raw OpenCV frame or None."""
+    """Capture the FRESHEST frame by flushing the buffer."""
     global _camera_conn
     with _camera_lock:
         cap = _get_camera()
         if cap is None:
             return None
+            
+        # FLUSH BUFFER: Read several frames to discard old images
+        # grab() is faster than read() as it doesn't decode the frame
+        for _ in range(4):
+            cap.grab()
+            
+        # Now retrieve the actual latest frame
         ret, frame = cap.read()
+        
         if not ret:
             # Camera may have disconnected — reset for next call
             try:
