@@ -26,7 +26,6 @@
 * [Conexión con LMStudio](#conexión-con-lmstudio)
 * [Protocolo Serial Arduino](#protocolo-serial-arduino)
 * [Configuración Rápida](#configuración-rápida)
-* [Generación de Reporte Técnico](#generación-de-reporte-técnico)
 * [Solución de Problemas](#solución-de-problemas)
 * [Estructura del Repositorio](#estructura-del-repositorio)
 * [Licencia](#licencia)
