@@ -559,22 +559,6 @@ Si quieres controlar la máquina desde un cliente MCP externo (Claude Desktop, L
 
 ---
 
-## Generación de Reporte Técnico
-
-El proyecto incluye un script especializado para generar un reporte técnico detallado en formato PDF, que incluye la arquitectura, diagramas y fragmentos de código con resaltado de sintaxis.
-
-```bash
-# Asegúrate de tener las dependencias instaladas
-pip install reportlab pygments
-
-# Ejecutar el generador
-python generate_pdf.py
-```
-
-El archivo resultante será `Reporte_Tecnico_FruitSorter_V4.pdf`.
-
----
-
 ## Solución de Problemas
 
 | Problema | Posible Solución |
