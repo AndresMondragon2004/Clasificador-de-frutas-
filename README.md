@@ -605,18 +605,6 @@ Clasificador-de-frutas-/
 
 ---
 
-## Licencia
-
-Este proyecto está bajo la Licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles (o siéntete libre de usarlo para fines educativos).
-
----
-
-## Contribuir
-
-¡Las contribuciones son bienvenidas! Si tienes ideas para mejorar el loop agéntico, optimizar el firmware o mejorar la precisión del sensor, no dudes en abrir un Pull Request.
-
----
-
 <div align="center">
 
 ### Desarrolladores
