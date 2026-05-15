@@ -107,4 +107,4 @@ def close():
     with _camera_lock:
         if _camera_conn and _camera_conn.isOpened():
             _camera_conn.release()
-        _camera_conn = None
+        _camera_conn = None# Final version

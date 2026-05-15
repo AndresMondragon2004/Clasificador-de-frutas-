@@ -83,4 +83,4 @@ def sort_to_right() -> str:
 
 
 if __name__ == "__main__":
-    app.run(transport="sse", port=8000)
+    app.run(transport="sse", port=8000)# Final version

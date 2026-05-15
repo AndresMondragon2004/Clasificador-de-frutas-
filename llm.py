@@ -121,3 +121,4 @@ def act_on_fruit(image_b64: str, on_message=None) -> str:
             return f"ERROR:Agent failure: {e}"
 
     return "ERROR:Max turns reached"
+# Final version

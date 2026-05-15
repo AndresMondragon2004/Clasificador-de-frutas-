@@ -155,4 +155,4 @@ def close():
     with _serial_lock:
         if _serial_conn and _serial_conn.is_open:
             _serial_conn.close()
-        _serial_conn = None
+        _serial_conn = None# Final version

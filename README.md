@@ -581,7 +581,6 @@ Clasificador-de-frutas-/
 ├── arduino.py           # Comunicación serial persistente con Arduino (VL53L0X + servos)
 ├── camera.py            # Captura de imágenes con webcam (conexión persistente)
 ├── mcp_service.py       # (Opcional) Servidor MCP via FastMCP + SSE
-├── generate_pdf.py      # Generador de reporte técnico en PDF
 │
 ├── fruit_sorter_nuevo.ino   # Firmware Arduino: VL53L0X (I2C) + 2× servo MG995
 ├── requirements.txt         # Dependencias Python
