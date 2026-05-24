@@ -5,4 +5,7 @@ fastmcp
 colorama
 reportlab
 pygments
+fastapi
+uvicorn
+websockets
 # Final version

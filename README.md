@@ -531,6 +531,32 @@ python service.py --port /dev/ttyUSB0 --camera 0 --threshold 13.0
 
 ---
 
+## Dashboard Web en Tiempo Real
+
+El sistema incluye una moderna interfaz gráfica en tiempo real (construida con React y Vite) que te permite visualizar la clasificación de frutas, la cámara, el proceso de IA y estadísticas generales de una forma estética ("Glassmorphism").
+
+### 1. Iniciar el Servidor Web (Backend)
+
+En lugar de usar `service.py`, utilizaremos el servidor web que corre el motor de clasificación en segundo plano:
+
+```bash
+# Iniciar el backend con WebSockets en http://localhost:8000
+python web_server.py
+```
+
+### 2. Iniciar el Dashboard (Frontend)
+
+Abre otra terminal y navega a la carpeta de la interfaz:
+
+```bash
+cd web-ui
+npm run dev
+```
+
+Se abrirá en `http://localhost:5173`. Al pasar una fruta, verás la captura de la cámara en el panel central, el estado del agente y las animaciones correspondientes sin perder ninguna información.
+
+---
+
 ## Sistema MCP (Opcional)
 
 Si quieres controlar la máquina desde un cliente MCP externo (Claude Desktop, LMStudio con MCP):

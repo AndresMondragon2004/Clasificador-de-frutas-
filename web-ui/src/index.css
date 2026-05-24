@@ -1,0 +1,287 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --bg-color: #0b0f19;
+  --panel-bg: rgba(22, 27, 43, 0.6);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --apple-color: #ff4b4b;
+  --apple-glow: rgba(255, 75, 75, 0.5);
+  
+  --orange-color: #f97316;
+  --orange-glow: rgba(249, 115, 22, 0.5);
+  
+  --wait-color: #3b82f6;
+  --wait-glow: rgba(59, 130, 246, 0.5);
+  
+  --success-color: #10b981;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background-color: var(--bg-color);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 85% 30%, rgba(249, 115, 22, 0.08) 0%, transparent 50%);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  max-width: 1400px;
+  padding: 2rem;
+}
+
+/* Typography */
+h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  font-weight: 400;
+  margin-bottom: 2rem;
+}
+
+/* Glassmorphism panel */
+.glass-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--panel-border);
+  border-radius: 24px;
+  padding: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 2rem;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Camera feed */
+.camera-container {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.8);
+}
+
+.camera-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.3s ease;
+}
+
+.camera-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  gap: 1rem;
+}
+
+.pulsing-dot {
+  width: 12px;
+  height: 12px;
+  background: var(--wait-color);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--wait-glow);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 var(--wait-glow); }
+  70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+/* Status Banner */
+.status-banner {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--panel-border);
+  background: linear-gradient(90deg, rgba(22, 27, 43, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.status-label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+
+.status-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+/* Status variants */
+.status-wait { color: var(--wait-color); text-shadow: 0 0 20px var(--wait-glow); }
+.status-apple { color: var(--apple-color); text-shadow: 0 0 20px var(--apple-glow); }
+.status-orange { color: var(--orange-color); text-shadow: 0 0 20px var(--orange-glow); }
+.status-analyzing { color: #a855f7; text-shadow: 0 0 20px rgba(168, 85, 247, 0.5); }
+
+/* Stats sidebar */
+.stats-header {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-box {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.stat-box:hover {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.stat-icon-apple {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 0 10px var(--apple-glow));
+}
+
+.stat-icon-orange {
+  font-size: 2.5rem;
+  filter: drop-shadow(0 0 10px var(--orange-glow));
+}
+
+.stat-details h3 {
+  font-size: 1rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.stat-details p {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-top: 0.2rem;
+}
+
+.apple-count { color: var(--apple-color); }
+.orange-count { color: var(--orange-color); }
+
+/* History List */
+.history-list {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.history-time {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.history-fruit {
+  font-weight: 600;
+  flex: 1;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.scanning-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: var(--wait-color);
+  box-shadow: 0 0 20px var(--wait-color), 0 0 40px var(--wait-color);
+  animation: scan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  opacity: 0.7;
+}
+
+@keyframes scan {
+  0% { top: 0; opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { top: 100%; opacity: 0; }
+}

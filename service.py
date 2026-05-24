@@ -103,21 +103,30 @@ def _on_agent_message(role: str, content: str) -> None:
 
 # === MAIN SORTING LOOP ===
 
-def sorting_loop(threshold_cm: float = 13.0) -> None:
+def sorting_loop(threshold_cm: float = 13.0, on_event=None) -> None:
     global _running
     log("🟢 Iniciando hardware y verificando IA...", GREEN)
+    if on_event:
+        on_event("system_status", {"message": "Iniciando hardware y verificando IA..."})
     
     if not llm.test_connection():
-        log("❌ Error: No se pudo conectar a LMStudio (¿Server iniciado?)", RED)
+        msg = "❌ Error: No se pudo conectar a LMStudio (¿Server iniciado?)"
+        log(msg, RED)
+        if on_event:
+            on_event("error", {"message": msg})
         return
 
     log("🚀 Sistema de clasificación en marcha.", BOLD + BLUE)
+    if on_event:
+        on_event("system_status", {"message": "Sistema de clasificación en marcha."})
 
     while _running:
         _stats["cycles"] += 1
         cycle = _stats["cycles"]
 
         log(f"🔍 Ciclo {cycle}: Esperando fruta en el sensor...", DIM)
+        if on_event:
+            on_event("waiting_fruit", {"cycle": cycle})
 
         # 1. Bloquear hasta detectar fruta
         result = arduino.wait_for_fruit(threshold_cm=threshold_cm, timeout_seconds=30)
@@ -131,19 +140,29 @@ def sorting_loop(threshold_cm: float = 13.0) -> None:
             continue
 
         log(f"📦 Ciclo {cycle}: ¡Fruta detectada a {dist}cm!", GREEN)
+        if on_event:
+            on_event("fruit_detected", {"cycle": cycle, "distance": dist})
         
         # 2. ESTABILIZACIÓN: Muy importante para el buffer de cámara y exposición
         time.sleep(0.6)
         
         log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
+        if on_event:
+            on_event("capturing_image", {"cycle": cycle})
         
         img_b64 = camera.get_camera_data()
         if not img_b64:
-            log("❌ Error al capturar imagen de la cámara.", RED)
+            msg = "❌ Error al capturar imagen de la cámara."
+            log(msg, RED)
+            if on_event:
+                on_event("error", {"message": msg})
             continue
 
         # 3. Llamar al Agente
         log(f"🧠 Ciclo {cycle}: Analizando con IA (V4+)...", MAGENTA)
+        if on_event:
+            on_event("analyzing_image", {"cycle": cycle, "image_b64": img_b64})
+            
         agent_status = llm.act_on_fruit(img_b64, on_message=_on_agent_message)
         
         # 4. Mostrar resultado estético
@@ -151,10 +170,14 @@ def sorting_loop(threshold_cm: float = 13.0) -> None:
         
         if agent_status.startswith("SUCCESS"):
             _stats["sorted"] += 1
+            if on_event:
+                on_event("sorted_success", {"cycle": cycle, "status": agent_status})
             # Darle tiempo al Arduino para terminar el movimiento físico
             time.sleep(3.0)
         else:
             _stats["discarded"] += 1
+            if on_event:
+                on_event("sorted_discarded", {"cycle": cycle, "status": agent_status})
             time.sleep(1.0)
 
 
