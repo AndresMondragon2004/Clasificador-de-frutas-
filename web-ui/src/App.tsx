@@ -14,6 +14,7 @@ function App() {
   const [appState, setAppState] = useState<AppState>('IDLE');
   const [message, setMessage] = useState('Iniciando sistema...');
   const [imageB64, setImageB64] = useState<string | null>(null);
+  const [flashEffect, setFlashEffect] = useState(false);
   
   const [stats, setStats] = useState({
     apples: 0,
@@ -24,17 +25,25 @@ function App() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const ws = useRef<WebSocket | null>(null);
 
+  const HOST = window.location.hostname;
+  const VIDEO_URL = `http://${HOST}:8000/video_feed`;
+
   useEffect(() => {
+    let isActive = true;
+
     // Connect to backend WebSocket
     const connectWs = () => {
-      ws.current = new WebSocket('ws://127.0.0.1:8000/ws');
+      ws.current = new WebSocket(`ws://${HOST}:8000/ws`);
       
       ws.current.onopen = () => {
+        if (!isActive) return;
         console.log("WS Connected");
         setMessage("Conectado al servidor. Esperando inicio...");
       };
 
       ws.current.onmessage = (event) => {
+        if (!isActive) return; // FIX DOUBLE COUNT IN STRICT MODE
+        
         const data = JSON.parse(event.data);
         const type = data.type;
         const payload = data.data;
@@ -48,7 +57,7 @@ function App() {
           case 'waiting_fruit':
             setAppState('WAITING');
             setMessage('Esperando fruta en el sensor...');
-            setImageB64(null);
+            setImageB64(null); // Go back to live video feed
             break;
           case 'fruit_detected':
             setAppState('DETECTED');
@@ -57,17 +66,19 @@ function App() {
           case 'capturing_image':
             setAppState('CAPTURING');
             setMessage('Capturando imagen...');
+            setFlashEffect(true);
+            setTimeout(() => { if(isActive) setFlashEffect(false); }, 150);
             break;
           case 'analyzing_image':
             setAppState('ANALYZING');
             setMessage('IA analizando la imagen...');
+            // Congelamos el frame exacto que la IA está analizando
             if (payload.image_b64) {
               setImageB64(`data:image/jpeg;base64,${payload.image_b64}`);
             }
             break;
           case 'sorted_success':
             setAppState('SUCCESS');
-            // Payload status is like "SUCCESS:apple:LEFT"
             const parts = payload.status.split(':');
             const fruitName = parts.length > 1 ? parts[1].toLowerCase() : 'unknown';
             const isApple = fruitName.includes('apple') || fruitName.includes('manzana');
@@ -107,13 +118,16 @@ function App() {
       };
 
       ws.current.onclose = () => {
+        if (!isActive) return;
         setMessage("Desconectado. Reintentando...");
         setTimeout(connectWs, 3000);
       };
     };
 
     connectWs();
+    
     return () => {
+      isActive = false;
       ws.current?.close();
     };
   }, []);
@@ -122,7 +136,7 @@ function App() {
     if (appState === 'WAITING') return 'status-wait';
     if (appState === 'SUCCESS') return 'status-success';
     if (appState === 'ANALYZING') return 'status-analyzing';
-    if (appState === 'DISCARDED') return 'status-wait'; // red glow maybe
+    if (appState === 'DISCARDED') return 'status-wait';
     return 'status-wait';
   };
 
@@ -146,17 +160,31 @@ function App() {
       <div className="dashboard-grid">
         {/* Main Feed */}
         <div className="glass-panel">
-          <div className="camera-container">
+          <div className="camera-container" style={{ position: 'relative', overflow: 'hidden' }}>
             {appState === 'ANALYZING' && <div className="scanning-line"></div>}
             
-            {imageB64 ? (
-              <img src={imageB64} alt="Camera Feed" className="camera-feed" />
-            ) : (
-              <div className="camera-placeholder">
-                <div className="pulsing-dot"></div>
-                <span>Esperando cámara...</span>
-              </div>
-            )}
+            {/* Flash Effect */}
+            <div style={{
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+              backgroundColor: 'white', zIndex: 10,
+              opacity: flashEffect ? 0.8 : 0,
+              transition: 'opacity 0.1s ease-out',
+              pointerEvents: 'none'
+            }}></div>
+            
+            <img 
+              src={imageB64 ? imageB64 : VIDEO_URL} 
+              alt="Live Camera Feed" 
+              className="camera-feed"
+              onError={(e) => {
+                // Si aún no hay cámara, mostramos un fallback gris
+                e.currentTarget.style.opacity = '0';
+              }}
+              onLoad={(e) => {
+                e.currentTarget.style.opacity = '1';
+              }}
+              style={{ transition: 'opacity 0.3s', backgroundColor: '#1e1e1e', objectFit: 'cover' }}
+            />
           </div>
 
           <div className="status-banner">
