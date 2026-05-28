@@ -144,7 +144,8 @@ def sorting_loop(threshold_cm: float = 13.0, on_event=None) -> None:
             on_event("fruit_detected", {"cycle": cycle, "distance": dist})
         
         # 2. ESTABILIZACIÓN: Muy importante para el buffer de cámara y exposición
-        time.sleep(0.6)
+        # Incrementado a 2.0s para evitar fotos borrosas (enfoque de cámara)
+        time.sleep(2.0)
         
         log(f"📷 Ciclo {cycle}: Capturando imagen...", CYAN)
         if on_event:

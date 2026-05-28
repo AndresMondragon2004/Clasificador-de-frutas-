@@ -48,6 +48,7 @@ function App() {
           case 'waiting_fruit':
             setAppState('WAITING');
             setMessage('Esperando fruta en el sensor...');
+            setImageB64(null);
             break;
           case 'fruit_detected':
             setAppState('DETECTED');
@@ -69,7 +70,7 @@ function App() {
             // Payload status is like "SUCCESS:apple:LEFT"
             const parts = payload.status.split(':');
             const fruitName = parts.length > 1 ? parts[1].toLowerCase() : 'unknown';
-            const isApple = fruitName === 'apple' || fruitName === 'manzana';
+            const isApple = fruitName.includes('apple') || fruitName.includes('manzana');
             
             setMessage(`¡Clasificado con éxito! Movido a la ${parts[2] || 'banda'}`);
             
@@ -85,7 +86,7 @@ function App() {
               time: timeNow,
               type: isApple ? 'APPLE' : 'ORANGE',
               message: isApple ? 'Manzana detectada' : 'Naranja detectada'
-            }, ...prev].slice(0, 5));
+            }, ...prev].slice(0, 4));
             break;
           case 'sorted_discarded':
             setAppState('DISCARDED');
@@ -97,7 +98,7 @@ function App() {
               time: timeNow,
               type: 'DISCARD',
               message: reason
-            }, ...prev].slice(0, 5));
+            }, ...prev].slice(0, 4));
             break;
           case 'error':
             setMessage(`Error: ${payload.message}`);
