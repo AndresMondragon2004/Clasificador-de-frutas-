@@ -23,8 +23,13 @@ const int ORANGE_ANGLE  = 45;    // Abre compuerta derecha
 const int RETURN_DELAY = 3000;   // ms que la compuerta permanece abierta
 
 // === SENSOR ===
-const int SENSOR_MIN_MM = 30;
-const int SENSOR_MAX_MM = 130;
+const int SENSOR_MIN_MM  = 30;
+const int SENSOR_MAX_MM  = 130;
+
+// === DEBOUNCE ===
+// Número de lecturas consecutivas válidas requeridas para confirmar detección
+const int DEBOUNCE_READS = 3;
+const int DEBOUNCE_DELAY = 20; // ms entre lecturas de debounce
 
 Servo servoLeft;
 Servo servoRight;
@@ -67,12 +72,35 @@ float get_distance() {
   VL53L0X_RangingMeasurementData_t medicion;
   sensor.rangingTest(&medicion, false);
 
-  if (medicion.RangeStatus == 4) return 999.0;
+  // RangeStatus != 0 indica lectura no válida (4 = fuera de rango, otros = error)
+  if (medicion.RangeStatus != 0) return 999.0;
 
   int mm = medicion.RangeMilliMeter;
   if (mm < SENSOR_MIN_MM || mm > SENSOR_MAX_MM) return 999.0;
 
   return mm / 10.0;
+}
+
+// Verifica con DEBOUNCE_READS lecturas consecutivas si hay un objeto presente
+bool object_present_debounced(int threshold_mm) {
+  int valid_count = 0;
+  for (int i = 0; i < DEBOUNCE_READS; i++) {
+    VL53L0X_RangingMeasurementData_t m;
+    sensor.rangingTest(&m, false);
+    if (m.RangeStatus == 0) {
+      int mm = m.RangeMilliMeter;
+      if (mm >= SENSOR_MIN_MM && mm <= threshold_mm) {
+        valid_count++;
+      } else {
+        // Lectura fuera de rango — resetear contador
+        valid_count = 0;
+      }
+    } else {
+      valid_count = 0;
+    }
+    if (i < DEBOUNCE_READS - 1) delay(DEBOUNCE_DELAY);
+  }
+  return valid_count >= DEBOUNCE_READS;
 }
 
 void processCommand(String command) {
@@ -95,6 +123,13 @@ void processCommand(String command) {
   }
   else if (command == "GET_DISTANCE") {
     Serial.println(get_distance());
+  }
+  else if (command.startsWith("CHECK_OBJECT:")) {
+    // CHECK_OBJECT:<threshold_mm>  → "PRESENT" o "ABSENT"
+    int threshold_mm = command.substring(13).toInt();
+    if (threshold_mm <= 0) threshold_mm = SENSOR_MAX_MM;
+    bool present = object_present_debounced(threshold_mm);
+    Serial.println(present ? "PRESENT" : "ABSENT");
   }
   else {
     Serial.println("ERROR:UNKNOWN_COMMAND");
